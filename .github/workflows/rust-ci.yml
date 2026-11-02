@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -50,7 +50,7 @@ jobs:
           python scripts/Prepare-Content.py --cli "target/release/atm${suffix}"
           python scripts/Package-Release.py --cli-only --output artifacts/atm-cli
           python scripts/Test-Distribution.py --cli-only "artifacts/atm-cli.${archive}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: atm-cli-${{ runner.os }}
           path: |
@@ -59,7 +59,7 @@ jobs:
           if-no-files-found: error
   core:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -67,7 +67,7 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Restore Rust compiler cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/registry
@@ -99,7 +99,7 @@ jobs:
           cargo fmt --all
           git diff --binary > rustfmt.patch
           tar -czf rust-source-format.tar.gz crates apps/desktop/src-tauri Cargo.toml Cargo.lock
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: rust-reproducibility
@@ -109,7 +109,7 @@ jobs:
             Cargo.lock
       - name: Save Rust compiler cache
         if: always() && !cancelled()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             ~/.cargo/registry
@@ -125,9 +125,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python: '3.11'
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python: '3.12'
           - os: windows-latest
             python: '3.12'
@@ -178,7 +178,7 @@ jobs:
         run: python scripts/check_plugin_generations.py
   linux-desktop:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' || inputs.validation_scope == 'linux-gui' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -195,7 +195,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev gnome-keyring dbus-x11 xvfb
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/registry
@@ -232,7 +232,7 @@ jobs:
         run: xvfb-run -a dbus-run-session -- bash scripts/Test-LinuxGui.sh
       - name: Preserve Linux native evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linux-native-ci-evidence
           path: |
@@ -243,12 +243,12 @@ jobs:
           python scripts/Package-Release.py --output artifacts/ai-tooling-manager-linux-x64
           python scripts/Test-Distribution.py artifacts/ai-tooling-manager-linux-x64.tar.gz
       - name: Preserve Linux preview executable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ai-tooling-manager-linux-x64
           path: artifacts/ai-tooling-manager-linux-x64.tar.gz
           if-no-files-found: error
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: always()
         with:
           path: |
@@ -292,7 +292,7 @@ jobs:
         if: always() && !cancelled() && steps.audit.outcome == 'success' && steps.install.outcome == 'success'
         run: npm run build
       - name: Restore Rust compiler cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/registry
@@ -311,7 +311,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve Windows static diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-static-diagnostics
           path: artifacts/diagnostics/clippy.log
@@ -323,7 +323,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve Windows core diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-core-diagnostics
           path: artifacts/diagnostics/core.log
@@ -347,19 +347,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve Windows executable
         if: always() && steps.tauri.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ai-tooling-manager-windows-x64
           path: artifacts/ai-tooling-manager-windows-x64.zip
           if-no-files-found: error
       - name: Preserve GUI evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tauri-gui-smoke
           path: artifacts/tauri-gui
       - name: Preserve dependency resolution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: dependency-locks
@@ -368,7 +368,7 @@ jobs:
             package-lock.json
       - name: Save Rust compiler cache
         if: always() && !cancelled() && steps.audit.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             ~/.cargo/registry
@@ -402,7 +402,7 @@ jobs:
           mkdir -p artifacts/macos-ci
           git rev-parse HEAD > artifacts/macos-ci/tested-sha.txt
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/registry
@@ -426,19 +426,19 @@ jobs:
           cargo build --locked --offline --release -p atm-cli
           python scripts/Package-Release.py --output artifacts/ai-tooling-manager-macos-arm64
           python scripts/Test-Distribution.py artifacts/ai-tooling-manager-macos-arm64.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ai-tooling-manager-macos-arm64
           path: artifacts/ai-tooling-manager-macos-arm64.tar.gz
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: macos-native-synthetic-evidence
           path: |
             artifacts/macos-ci
             artifacts/macos-gui
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: always() && !cancelled()
         with:
           path: |
