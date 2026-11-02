@@ -9,8 +9,8 @@ OMH 负责技能源、脚本、组合与版本；ATM 固定其发布锁，使用
 PR #7 将 ATM 0.2.0 绑定 OMH 1.1.0 并提供 CLI-only 打包（CI 新增三平台 cli-only 与锁定源
 Python 作业），PR #8 在 OMH 历史重组后把源锁刷新到 revision 557a629；main 原生验证全绿
 （run 40627262161：cli-only/core/python-payloads/linux-desktop/desktop/macos-desktop）。
-真实 Home 的 manager-home 迁移已按显式 preview/apply 完成（本机 `~/.atm/state/relocation.json`
-记录 completed）；其内容仍持有 1.2.0 锁下安装的身份，1.1.0 重选仍待显式执行。
+真实 Home 的 manager-home 迁移与 1.1.0 内容重选均已完成（本机 `~/.atm/state/` 的
+relocation 与分发收据记录 completed/ready）。
 真实 Home 的备份、发布包与执行检查点保存在本机忽略提交的交接目录
 `~/.local/state/atm-deployments/`；不把历史 CI 套用到后续改动。
 
