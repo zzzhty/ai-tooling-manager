@@ -370,19 +370,30 @@ impl Service {
         let mut guards = Vec::new();
         let mut selected = BTreeSet::new();
         let mut canonical = Vec::new();
-        for target in targets {
-            let (id, skills) = self.root(target)?;
-            let root = skills.parent().ok_or_else(invalid)?.to_path_buf();
-            if operation != "remove"
-                && state.runtimes.values().any(|prepared| {
-                    physical_overlap(
-                        &root,
+        // Stored paths can retain Windows short names or mixed separators.
+        // Compare their physical existing ancestors, including future leaves.
+        let runtime_roots = if operation == "remove" {
+            Vec::new()
+        } else {
+            state
+                .runtimes
+                .values()
+                .map(|prepared| {
+                    physical_path(
                         prepared
                             .deployment_root
                             .as_deref()
                             .unwrap_or(&prepared.root),
                     )
                 })
+                .collect::<Result<Vec<_>>>()?
+        };
+        for target in targets {
+            let (id, skills) = self.root(target)?;
+            let root = skills.parent().ok_or_else(invalid)?.to_path_buf();
+            if runtime_roots
+                .iter()
+                .any(|runtime_root| physical_overlap(&root, runtime_root))
             {
                 return Err(Error::new(
                     "HARNESS_OWNER_CONFLICT",
@@ -803,10 +814,11 @@ impl Service {
         )
         .map_err(|_| invalid())?;
         // A runtime deployment cannot overlap an installed skill target.
+        let deployment_root = physical_path(deployment_root)?;
         if state
             .receipts
             .values()
-            .any(|r| physical_overlap(&r.root, deployment_root))
+            .any(|r| physical_overlap(&r.root, &deployment_root))
         {
             return Err(Error::new(
                 "HARNESS_OWNER_CONFLICT",
@@ -820,7 +832,7 @@ impl Service {
             python,
             external_venv,
             offline,
-            deployment_root,
+            &deployment_root,
         )?;
         state.runtimes.insert(group.into(), prepared.clone());
         let targets: Vec<String> = state.receipts.values().map(|r| r.target.clone()).collect();
