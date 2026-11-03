@@ -193,6 +193,13 @@ impl Lock {
         Ok(Self { _file: file })
     }
 }
+impl Drop for Lock {
+    fn drop(&mut self) {
+        // close alone can retain an OFD lock while a forked child still has a
+        // descriptor. Release at the guard boundary, before closing our handle.
+        let _ = self._file.unlock();
+    }
+}
 fn sync_directory(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
@@ -979,6 +986,19 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn dropping_guard_unlocks_even_when_an_inherited_descriptor_stays_open() {
+        let temp = tempfile::tempdir().unwrap();
+        let guard = Lock::acquire(temp.path()).unwrap();
+        // A fork temporarily inherits the same open-file description before
+        // exec closes CLOEXEC descriptors. Model that lifetime with a clone.
+        let inherited = guard._file.try_clone().unwrap();
+        drop(guard);
+        let next = Lock::acquire(temp.path()).unwrap();
+        drop(next);
+        drop(inherited);
+    }
     #[test]
     fn lock_conflicts_and_file_recovery() {
         let temp = tempfile::tempdir().unwrap();
