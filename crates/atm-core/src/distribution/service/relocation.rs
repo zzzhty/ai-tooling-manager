@@ -185,8 +185,14 @@ impl Service {
         desired.release_version = bundle.release.clone();
         desired.runtimes.clear();
         let dest = self.destination(destination.clone())?;
-        let projection =
-            dest.plan_from_state("refresh", &targets, None, desired, Some(bundle.clone()))?;
+        let projection = dest.plan_from_state_with_owner(
+            "refresh",
+            &targets,
+            None,
+            desired,
+            Some(bundle.clone()),
+            Some(&self.home),
+        )?;
         let mut files = projection.files.clone();
         files.extend([
             self.home.join(RETIRED),
@@ -336,6 +342,26 @@ impl Service {
             return Err(invalid());
         };
         let mut state = decode_state(bytes)?;
+        for owned in state.receipts.values_mut() {
+            for artifact in runtime::binding_artifacts(&plan.bundle, &owned.root, &runtimes)? {
+                let change = projection
+                    .iter_mut()
+                    .find(|c| artifact.path.starts_with(&c.path))
+                    .ok_or_else(invalid)?;
+                owned
+                    .files
+                    .insert(artifact.path.clone(), digest(&artifact.bytes));
+                let relative = artifact
+                    .path
+                    .strip_prefix(&change.path)
+                    .map_err(|_| invalid())?;
+                tree_set(
+                    &mut change.after,
+                    relative,
+                    Some(Node::File(artifact.bytes)),
+                )?;
+            }
+        }
         state.runtimes = runtimes;
         receipt.after = Some(Node::File(encode(&state)?));
         changes.extend(projection);

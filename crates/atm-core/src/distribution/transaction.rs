@@ -165,9 +165,11 @@ pub struct Lock {
 }
 impl Lock {
     pub fn acquire(home: &Path) -> Result<Self> {
-        let path = home.join("state/manager.lock");
-        safe_path(&path)?;
-        match fs::symlink_metadata(&path) {
+        Self::at(&home.join("state/manager.lock"))
+    }
+    pub fn at(path: &Path) -> Result<Self> {
+        safe_path(path)?;
+        match fs::symlink_metadata(path) {
             Ok(meta) if !meta.is_file() || special(&meta) => return Err(conflict()),
             Ok(_) => (),
             Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -189,6 +191,13 @@ impl Lock {
             )
         })?;
         Ok(Self { _file: file })
+    }
+}
+impl Drop for Lock {
+    fn drop(&mut self) {
+        // close alone can retain an OFD lock while a forked child still has a
+        // descriptor. Release at the guard boundary, before closing our handle.
+        let _ = self._file.unlock();
     }
 }
 fn sync_directory(path: &Path) -> Result<()> {
@@ -700,7 +709,24 @@ fn replace_simple(change: &Change, forward: bool) -> Result<()> {
 pub fn pending(home: &Path) -> bool {
     !matches!(fs::symlink_metadata(journal_path(home)), Err(e) if e.kind() == io::ErrorKind::NotFound)
 }
+fn target_locks(changes: &[Change]) -> Result<Vec<Lock>> {
+    let paths: BTreeSet<_> = changes
+        .iter()
+        .filter(|c| c.path.file_name().is_some_and(|s| s == ".omh-owner.json"))
+        .map(|c| c.path.with_file_name(".omh-owner.lock"))
+        .collect();
+    paths.iter().map(|path| Lock::at(path)).collect()
+}
 pub fn recover(home: &Path) -> Result<()> {
+    let Some(bytes) = file_bytes(&journal_path(home))? else {
+        return Ok(());
+    };
+    let journal: Journal = serde_json::from_slice(&bytes).map_err(|_| conflict())?;
+    validate_journal(home, &journal)?;
+    let _targets = target_locks(&journal.changes)?;
+    recover_locked(home)
+}
+fn recover_locked(home: &Path) -> Result<()> {
     let path = journal_path(home);
     let Some(bytes) = file_bytes(&path)? else {
         return Ok(());
@@ -774,6 +800,7 @@ pub fn validate_plan(home: &Path, changes: &[Change]) -> Result<()> {
 }
 
 pub fn apply(home: &Path, changes: Vec<Change>) -> Result<()> {
+    let _targets = target_locks(&changes)?;
     let mut journal = Journal {
         schema_version: JOURNAL_SCHEMA,
         product: "atm-harness".into(),
@@ -791,7 +818,7 @@ pub fn apply(home: &Path, changes: Vec<Change>) -> Result<()> {
             replace_simple(change, true)
         };
         if let Err(error) = result {
-            if recover(home).is_err() {
+            if recover_locked(home).is_err() {
                 return Err(Error::new(
                     "HARNESS_RECOVERY_REQUIRED",
                     "操作失败且恢复仍需处理；journal 和未确认所有权的文件已保留。",
@@ -807,7 +834,7 @@ pub fn apply(home: &Path, changes: Vec<Change>) -> Result<()> {
     // Every durable write has already succeeded, so a cleanup failure keeps
     // the journal for an explicit `atm harness recover` instead of reporting
     // the committed operation itself as failed.
-    let _ = recover(home);
+    let _ = recover_locked(home);
     Ok(())
 }
 
@@ -959,6 +986,19 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn dropping_guard_unlocks_even_when_an_inherited_descriptor_stays_open() {
+        let temp = tempfile::tempdir().unwrap();
+        let guard = Lock::acquire(temp.path()).unwrap();
+        // A fork temporarily inherits the same open-file description before
+        // exec closes CLOEXEC descriptors. Model that lifetime with a clone.
+        let inherited = guard._file.try_clone().unwrap();
+        drop(guard);
+        let next = Lock::acquire(temp.path()).unwrap();
+        drop(next);
+        drop(inherited);
+    }
     #[test]
     fn lock_conflicts_and_file_recovery() {
         let temp = tempfile::tempdir().unwrap();

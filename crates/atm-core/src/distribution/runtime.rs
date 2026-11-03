@@ -1,11 +1,10 @@
-//! Optional, isolated Python payload environments. This module never runs an installer engine.
+//! Static declaration validation and a process bridge to the OMH-owned runtime protocol.
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     ffi::OsString,
-    fs::{self, File, OpenOptions},
+    fs,
     io::Read,
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
@@ -33,16 +32,10 @@ pub struct PreparedRuntime {
     pub root: PathBuf,
     pub python: PathBuf,
     pub external: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Probe {
-    version: Vec<u32>,
-    prefix: PathBuf,
-    base_prefix: PathBuf,
-    distributions: BTreeMap<String, String>,
-    modules: BTreeMap<String, bool>,
+    /// New managed environments record the explicit deployment root. Old
+    /// receipts retain their original identities and default manager location.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployment_root: Option<PathBuf>,
 }
 
 fn invalid() -> Error {
@@ -182,55 +175,13 @@ fn parse_lock(bytes: &[u8]) -> Result<BTreeMap<String, String>> {
     Ok(packages)
 }
 
-pub fn venv_python(root: &Path, windows: bool) -> PathBuf {
-    root.join(if windows {
-        "Scripts/python.exe"
-    } else {
-        "bin/python"
-    })
-}
-
-/// Exposed argv construction keeps platform quoting out of process invocation.
-pub fn pip_arguments(lock: &Path, wheel_cache: &Path, offline: bool) -> Vec<OsString> {
-    let mut args: Vec<OsString> = [
-        "-I",
-        "-m",
-        "pip",
-        "--isolated",
-        "--disable-pip-version-check",
-        "install",
-        "--no-input",
-        "--require-hashes",
-        "--only-binary=:all:",
-        "--no-cache-dir",
-    ]
-    .into_iter()
-    .map(OsString::from)
-    .collect();
-    if offline {
-        args.push("--no-index".into());
-        args.push("--find-links".into());
-        args.push(wheel_cache.as_os_str().to_owned());
-    }
-    args.push("--requirement".into());
-    args.push(lock.as_os_str().to_owned());
-    args
-}
-
 fn bounded_run(program: &Path, args: &[OsString], timeout: Duration) -> Result<Vec<u8>> {
     let mut command = Command::new(program);
     command
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .env_remove("PYTHONPATH")
-        .env_remove("PYTHONHOME")
-        .env_remove("VIRTUAL_ENV")
-        .env_remove("PIP_TARGET")
-        .env_remove("PIP_PREFIX")
-        .env_remove("PIP_USER")
-        .env("PYTHONDONTWRITEBYTECODE", "1");
+        .stderr(Stdio::null());
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -303,118 +254,63 @@ fn bounded_run(program: &Path, args: &[OsString], timeout: Duration) -> Result<V
     }
 }
 
-const PROBE: &str = r#"import importlib.util, importlib.metadata, json, sys
-names, modules = json.loads(sys.argv[1])
-distributions = {}
-for name in names:
-    try: distributions[name] = importlib.metadata.version(name)
-    except importlib.metadata.PackageNotFoundError: distributions[name] = ''
-print(json.dumps({'version': list(sys.version_info[:2]), 'prefix': sys.prefix, 'basePrefix': sys.base_prefix, 'distributions': distributions, 'modules': {name: importlib.util.find_spec(name) is not None for name in modules}}))
-"#;
-fn probe(
+// The provider is content-addressed with the selected OMH bundle. Static import
+// validates bytes only; only explicit runtime preparation/verification executes it.
+const PROVIDER: &str = "plugins/workflow/scripts/omh_runtime.py";
+fn invoke(
     python: &Path,
-    spec: &RuntimeSpec,
-    packages: &BTreeMap<String, String>,
-    root: Option<&Path>,
-) -> Result<Probe> {
+    bundle: &Path,
+    operation: &str,
+    request: serde_json::Value,
+) -> Result<PreparedRuntime> {
     if !python.is_absolute() || !python.is_file() {
         return Err(python_missing());
     }
-    let input = serde_json::to_string(&(packages.keys().collect::<Vec<_>>(), &spec.imports))
-        .map_err(|_| invalid())?;
-    let bytes = bounded_run(
+    let provider = bundle.join(PROVIDER);
+    if !provider.is_file() {
+        return Err(Error::new(
+            "HARNESS_RUNTIME_PROVIDER_REQUIRED",
+            "此内容版本没有 OMH runtime 协议；请显式选择支持双模式的内容发布。",
+        ));
+    }
+    let output = bounded_run(
         python,
         &[
             "-I".into(),
             "-B".into(),
-            "-c".into(),
-            PROBE.into(),
-            input.into(),
+            provider.into_os_string(),
+            operation.into(),
+            "--request".into(),
+            request.to_string().into(),
         ],
-        Duration::from_secs(15),
+        Duration::from_secs(480),
     )?;
-    let result: Probe = serde_json::from_slice(&bytes).map_err(|_| runtime_bad())?;
-    if result.version.len() != 2
-        || result.version[0] != spec.minimum_python[0]
-        || result.version[1] < spec.minimum_python[1]
-        || result.distributions != *packages
-        || spec
-            .imports
-            .iter()
-            .any(|name| result.modules.get(name) != Some(&true))
-    {
-        return Err(runtime_bad());
+    let value: serde_json::Value = serde_json::from_slice(&output).map_err(|_| runtime_bad())?;
+    if let Some(error) = value.get("error") {
+        let code = error["code"].as_str().unwrap_or("HARNESS_RUNTIME_INVALID");
+        return Err(match code {
+            "HARNESS_PYTHON_REQUIRED" => python_missing(),
+            "HARNESS_RUNTIME_SPEC" => invalid(),
+            "HARNESS_RUNTIME_BUSY" => Error::new(
+                "HARNESS_RUNTIME_BUSY",
+                "OMH runtime 正在准备或无法取得独占锁。",
+            ),
+            "HARNESS_RUNTIME_TIMEOUT" => Error::new(
+                "HARNESS_RUNTIME_TIMEOUT",
+                "OMH runtime 准备超时；旧引用保持不变。",
+            ),
+            "HARNESS_RUNTIME_OFFLINE_MISSING" => Error::new(
+                "HARNESS_RUNTIME_OFFLINE_MISSING",
+                "离线 wheel 缓存未满足锁定依赖。",
+            ),
+            _ => runtime_bad(),
+        });
     }
-    if let Some(root) = root {
-        if fs::canonicalize(&result.prefix).map_err(Error::io)?
-            != fs::canonicalize(root).map_err(Error::io)?
-            || result.prefix == result.base_prefix
-        {
-            return Err(runtime_bad());
-        }
-    }
-    Ok(result)
+    serde_json::from_value(value["ok"].clone()).map_err(|_| runtime_bad())
 }
 
-/// Verify one prepared reference against the selected, validated bundle's current
-/// declaration. This is a read-only interpreter probe, never an import of the
-/// hook entry point and never a venv/pip operation.
-pub fn verify(
-    manager_home: &Path,
-    bundle_root: &Path,
-    spec: &RuntimeSpec,
-    prepared: &PreparedRuntime,
-) -> Result<()> {
-    let locked = lock_bytes(spec, bundle_root)?;
-    let packages = parse_lock(&locked)?;
-    if prepared.id != spec.id
-        || prepared.identity.len() != 64
-        || !prepared.identity.bytes().all(|c| c.is_ascii_hexdigit())
-        || prepared.python != venv_python(&prepared.root, cfg!(windows))
-    {
-        return Err(runtime_bad());
-    }
-    checked_path(&prepared.root)?;
-    checked_path(&prepared.root.join("pyvenv.cfg"))?;
-    if !prepared.root.join("pyvenv.cfg").is_file() {
-        return Err(runtime_bad());
-    }
-    if prepared.external {
-        let expected = format!(
-            "{:x}",
-            Sha256::digest(
-                serde_json::to_vec(&(spec, &locked, &prepared.root)).map_err(|_| invalid())?
-            )
-        );
-        if prepared.identity != expected {
-            return Err(runtime_bad());
-        }
-    } else {
-        if prepared.root
-            != manager_home
-                .join("runtimes")
-                .join(&spec.id)
-                .join(&prepared.identity)
-        {
-            return Err(runtime_bad());
-        }
-        let marker = prepared.root.join(".atm-runtime.json");
-        checked_path(&marker)?;
-        let recorded: PreparedRuntime =
-            serde_json::from_slice(&fs::read(marker).map_err(|_| runtime_bad())?)
-                .map_err(|_| runtime_bad())?;
-        if recorded != *prepared {
-            return Err(runtime_bad());
-        }
-    }
-    probe(&prepared.python, spec, &packages, Some(&prepared.root))?;
-    Ok(())
-}
-
-/// Build and verify at the final version path, then let the caller journal a
-/// reference switch. Old environments and every failed partial attempt survive.
-/// The caller serializes this with its manager transaction. A separate OS lock
-/// additionally prevents two direct users of this API from preparing one group.
+/// ATM supplies explicit bootstrap Python and runtime deployment root, distinct
+/// from client skill targets. OMH performs all venv/dependency/probe operations.
 pub fn prepare(
     manager_home: &Path,
     bundle_root: &Path,
@@ -423,153 +319,92 @@ pub fn prepare(
     external_venv: Option<&Path>,
     offline: bool,
 ) -> Result<PreparedRuntime> {
-    let locked = lock_bytes(spec, bundle_root)?;
-    let packages = parse_lock(&locked)?;
-    if let Some(root) = external_venv {
-        checked_path(root)?;
-        if !root.join("pyvenv.cfg").is_file() {
-            return Err(runtime_bad());
-        }
-        let python = venv_python(root, cfg!(windows));
-        probe(&python, spec, &packages, Some(root))?;
-        let identity = format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&(spec, &locked, root)).map_err(|_| invalid())?)
-        );
-        return Ok(PreparedRuntime {
-            id: spec.id.clone(),
-            identity,
-            root: root.to_path_buf(),
-            python,
-            external: true,
+    prepare_at(
+        manager_home,
+        bundle_root,
+        spec,
+        interpreter,
+        external_venv,
+        offline,
+        &manager_home.join("runtimes"),
+    )
+}
+
+pub fn prepare_at(
+    manager_home: &Path,
+    bundle_root: &Path,
+    spec: &RuntimeSpec,
+    interpreter: &Path,
+    external_venv: Option<&Path>,
+    offline: bool,
+    deployment_root: &Path,
+) -> Result<PreparedRuntime> {
+    invoke(
+        interpreter,
+        bundle_root,
+        "prepare",
+        serde_json::json!({
+            "protocol":1, "spec":spec, "python":interpreter,
+            "deploymentRoot":deployment_root, "bundleRoot":bundle_root,
+            "externalVenv":external_venv, "offline":offline,
+            "wheelCache":manager_home.join("cache/wheels")
+        }),
+    )
+}
+/// Pure projection of the protocol binding. It starts no interpreter. The copied
+/// OMH launcher owns override resolution, validation and script startup.
+pub fn binding_artifacts(
+    bundle: &super::source::Bundle,
+    root: &Path,
+    prepared: &BTreeMap<String, PreparedRuntime>,
+) -> Result<Vec<super::Artifact>> {
+    if !bundle.files.contains_key(PROVIDER) {
+        return Ok(Vec::new());
+    }
+    let mut files = Vec::new();
+    for name in ["omh_runtime.py", "run.sh", "run.ps1"] {
+        files.push(super::Artifact {
+            path: root.join(".omh-runtime").join(name),
+            bytes: bundle
+                .files
+                .get(&format!("plugins/workflow/scripts/{name}"))
+                .ok_or_else(invalid)?
+                .clone(),
         });
     }
-    if !interpreter.is_absolute() || !interpreter.is_file() {
-        return Err(python_missing());
-    }
-    // Probe the system interpreter only for version; packages belong in the venv.
-    let base_spec = RuntimeSpec {
-        imports: Vec::new(),
-        ..spec.clone()
-    };
-    let base = probe(interpreter, &base_spec, &BTreeMap::new(), None)?;
-    let canonical_python = fs::canonicalize(interpreter).map_err(Error::io)?;
-    let mut interpreter_hash = Sha256::new();
-    let mut file = File::open(&canonical_python).map_err(Error::io)?;
-    let mut buffer = [0; 65536];
-    loop {
-        let n = file.read(&mut buffer).map_err(Error::io)?;
-        if n == 0 {
-            break;
+    for group in bundle.manifest["runtimeGroups"]
+        .as_array()
+        .ok_or_else(invalid)?
+    {
+        let spec: RuntimeSpec = serde_json::from_value(group.clone()).map_err(|_| invalid())?;
+        if !portable_id(&spec.id) {
+            return Err(invalid());
         }
-        interpreter_hash.update(&buffer[..n]);
-    }
-    let identity = format!(
-        "{:x}",
-        Sha256::digest(
-            serde_json::to_vec(&(
-                spec,
-                &locked,
-                &canonical_python,
-                base.version,
-                format!("{:x}", interpreter_hash.finalize())
-            ))
-            .map_err(|_| invalid())?
-        )
-    );
-    let group = manager_home.join("runtimes").join(&spec.id);
-    checked_path(&group)?;
-    fs::create_dir_all(&group).map_err(Error::io)?;
-    checked_path(&group)?;
-    let lock_path = group.join(".prepare.lock");
-    checked_path(&lock_path)?;
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(lock_path)
-        .map_err(Error::io)?;
-    lock.try_lock().map_err(|_| {
-        Error::new(
-            "HARNESS_RUNTIME_BUSY",
-            "该 Python 依赖组正在准备，或系统无法取得独占锁。",
-        )
-    })?;
-    let root = group.join(&identity);
-    checked_path(&root)?;
-    let prepared = PreparedRuntime {
-        id: spec.id.clone(),
-        identity,
-        python: venv_python(&root, cfg!(windows)),
-        root: root.clone(),
-        external: false,
-    };
-    let marker = root.join(".atm-runtime.json");
-    if root.exists() {
-        checked_path(&marker)?;
-        let old: PreparedRuntime = serde_json::from_slice(&fs::read(&marker).map_err(|_| {
-            Error::new(
-                "HARNESS_RUNTIME_INCOMPLETE",
-                "此版本环境尚未准备完成；保留失败现场和旧环境，请显式清理未完成版本后重试。",
+        let locked = match &spec.requirements_lock {
+            Some(path) => String::from_utf8(bundle.files.get(path).ok_or_else(invalid)?.clone())
+                .map_err(|_| invalid())?,
+            None => String::new(),
+        };
+        let binding = prepared.get(&spec.id);
+        files.push(super::Artifact {
+            path: root.join(".omh-runtime").join(format!("{}.json", spec.id)),
+            bytes: serde_json::to_vec(
+                &serde_json::json!({"protocol":1,"spec":spec,"prepared":binding,"lock":locked}),
             )
-        })?)
-        .map_err(|_| runtime_bad())?;
-        if old != prepared {
-            return Err(runtime_bad());
-        }
-        probe(&prepared.python, spec, &packages, Some(&root))?;
-        return Ok(prepared);
+            .map_err(|_| invalid())?,
+        });
+        files.push(super::Artifact {
+            path: root
+                .join(".omh-runtime")
+                .join(format!("{}.python", spec.id)),
+            bytes: format!(
+                "{}\n",
+                binding
+                    .map(|r| r.python.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            )
+            .into_bytes(),
+        });
     }
-    fs::create_dir(&root).map_err(Error::io)?;
-    // Marker is written only after final-path verification, never before.
-    bounded_run(
-        interpreter,
-        &[
-            "-I".into(),
-            "-B".into(),
-            "-m".into(),
-            "venv".into(),
-            root.as_os_str().to_owned(),
-        ],
-        Duration::from_secs(120),
-    )?;
-    if !packages.is_empty() {
-        let lock_path = root.join("requirements.lock");
-        fs::write(&lock_path, &locked).map_err(Error::io)?;
-        let wheel_cache = manager_home.join("cache/wheels");
-        if offline && !wheel_cache.is_dir() {
-            return Err(Error::new(
-                "HARNESS_RUNTIME_OFFLINE_MISSING",
-                "离线 wheel 缓存缺少锁定依赖；旧环境和引用保持不变。",
-            ));
-        }
-        checked_path(&wheel_cache)?;
-        bounded_run(
-            &prepared.python,
-            &pip_arguments(&lock_path, &wheel_cache, offline),
-            Duration::from_secs(300),
-        )
-        .map_err(|error| {
-            if offline && error.code == "HARNESS_RUNTIME_INVALID" {
-                Error::new(
-                    "HARNESS_RUNTIME_OFFLINE_MISSING",
-                    "离线 wheel 缓存未满足全部锁定依赖（含版本或哈希）；旧环境和引用保持不变。",
-                )
-            } else {
-                error
-            }
-        })?;
-    }
-    probe(&prepared.python, spec, &packages, Some(&root))?;
-    let bytes = serde_json::to_vec_pretty(&prepared).map_err(|_| invalid())?;
-    let mut marker_file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&marker)
-        .map_err(Error::io)?;
-    use std::io::Write;
-    marker_file.write_all(&bytes).map_err(Error::io)?;
-    marker_file.sync_all().map_err(Error::io)?;
-    Ok(prepared)
+    Ok(files)
 }

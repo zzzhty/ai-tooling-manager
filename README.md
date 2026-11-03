@@ -128,7 +128,7 @@ Linux / Windows / macOS 的功能支持状态、合成 GUI/CLI 验证步骤与�
 
 发布包包含 `atm`、`atm-desktop` 和相邻的 `harness/` manifest 允许清单。完整 Python 分发脚本树不进入包。整体解压后使用；升级程序包后运行 `atm harness sync`，再对已安装目标执行 `atm update skills --harness <ID>`。缓存版本和 runtime 环境不会随意搬移；未完成操作通过 `atm harness recover` 按 journal 恢复，遇到用户后续修改则停止并保留证据。
 
-静态 skills 与 status 无需 Python。只有显式选定的 Python payload 需要声明版本的解释器与独立 venv；runtime 准备命令返回可直接使用的解释器路径。release 构建只读取相邻 `harness/` 或显式绝对路径 `ATM_ENGINE_SOURCE`，不会回退到构建机源码目录。便携包未签名；Windows 仍需 WebView2，Linux 桌面仍需 WebKitGTK，会话 keyring 仅供配置加密功能使用。
+静态 skills 与 status 无需 Python。只有显式选定的 Python payload 需要声明版本的解释器与独立 venv；runtime 准备复用 OMH 的 Python 实现，显式 `--python` 选择解释器，`--deployment-root` 选择独立的 venv 部署位置；`--external-venv` 可只读复用已有 OMH venv。目标旁的 `.omh-runtime` 持久保存启动绑定，`OMH_PYTHON` 可显式覆盖。release 构建只读取相邻 `harness/` 或显式绝对路径 `ATM_ENGINE_SOURCE`，不会回退到构建机源码目录。便携包未签名；Windows 仍需 WebView2，Linux 桌面仍需 WebKitGTK，会话 keyring 仅供配置加密功能使用。
 
 ATM 应用保持 `0.2.0`，OMH 纯 Hub 内容使用独立的 `1.1.0` 版本线。无需桌面的用户可只构建 `atm-cli`，使用 `Package-Release.py --cli-only` 打包；完整步骤见 [Harness 使用文档](docs/HARNESS_USAGE.md#independent-versions-and-cli-only-packages)。CLI 与桌面共享同一 manager/receipt，不创建 OMH 的第二个 owner。
 
@@ -228,3 +228,5 @@ DPAPI / 会话 keyring / Keychain 不能防御同一用户下的恶意进程、�
 ## 公开前的数据边界
 
 准备分发源码或变更仓库可见性前，先检查[公开前的数据边界](docs/publication-safety.md)。当前文件清理不代表历史、PR diff 或构建产物已经脱敏。
+
+OMH 独立 Python 分发与 ATM Rust 分发遵守单目标单 owner；共享 runtime 流程和显式交接见 [ADR 0031](docs/adr/0031-omh-owned-runtime-and-independent-distribution.md)。新流程需支持协议的 OMH 内容；本改动保留现有发布锁，不自动迁移真实安装。

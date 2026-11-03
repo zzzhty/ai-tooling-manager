@@ -116,6 +116,7 @@
     "docs/adr/0028-rust-distribution-and-optional-payload-runtimes.md",
     "docs/adr/0029-locked-content-and-manager-home-handoff.md",
     "docs/adr/0030-provider-egress-proxy-binding.md",
+    "docs/adr/0031-omh-owned-runtime-and-independent-distribution.md",
     "docs/agents/internal-identifier-evolution.md",
     "docs/pending-platform-work.md",
     "docs/publication-safety.md",
