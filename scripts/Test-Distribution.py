@@ -131,8 +131,10 @@ def main():
         source = args.payload_only.resolve()
         with tempfile.TemporaryDirectory(prefix="ATM_TEST_ONLY_payload_") as temporary:
             root = Path(temporary).resolve()
+            # Keep the runtime's module cache location: omitting it makes an
+            # isolated Windows PowerShell repeat expensive startup analysis.
             env = {key: value for key, value in os.environ.items()
-                   if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
+                   if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PSMODULEANALYSISCACHEPATH"}}
             env.update(PATH="", HOME=str(root), USERPROFILE=str(root), ATM_HOME=str(root / 'manager'))
             result = subprocess.run([str(args.cli.resolve()), 'harness', 'bootstrap', '--source', str(source)],
                                     env=env, capture_output=True, text=True, encoding='utf-8', check=True)
@@ -161,7 +163,7 @@ def main():
         user.mkdir()
         home = user / "manager with spaces"
         env = {key: value for key, value in os.environ.items()
-               if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
+               if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PSMODULEANALYSISCACHEPATH"}}
         env.update(PATH="", HOME=str(user), USERPROFILE=str(user), ATM_HOME=str(home),
                    APPDATA=str(user / "appdata"), LOCALAPPDATA=str(user / "localappdata"),
                    XDG_DATA_HOME=str(user / ".local/share"), XDG_CONFIG_HOME=str(user / ".config"))
