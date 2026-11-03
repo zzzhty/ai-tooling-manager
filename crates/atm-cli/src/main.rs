@@ -49,7 +49,7 @@ const USAGE: &str = "用法（动词优先；--harness 选择内置引擎，省�
   atm harness status|recover [--json] [--home PATH]
   atm harness migrate --to <ABS_HOME> [--source <ABS_PATH>] [--home PATH] [--python <ABS_PATH>] [--offline] [--dry-run]
   atm harness plan <install|refresh|remove|repair> --harness <ID>[,<ID>...]
-  atm harness runtime prepare <GROUP> --python <ABS_PATH> [--external-venv <ABS_PATH>] [--offline]
+  atm harness runtime prepare <GROUP> --python <ABS_PATH> [--external-venv <ABS_PATH>] [--deployment-root <ABS_PATH>] [--offline]
   atm harness verify-source [--source <ABS_PATH>]       # 校验发布内容
   atm harness import --lock <ABS_PATH> [--archive <ABS_PATH>] [--home PATH]
                                                       # 仅导入固定版本缓存；另行 sync/apply
@@ -143,8 +143,9 @@ fn parse(rest: &[String], options: &[&'static str]) -> Result<Parsed> {
         // Value options consume the following token, never an inline value.
         match argument {
             "--harness" | "--to" | "--from" | "--name" | "--home" | "--source" | "--python"
-            | "--external-venv" | "--retire-missing" | "--output" | "--repository"
-            | "--revision" | "--url" | "--composition" | "--lock" | "--archive" => {
+            | "--external-venv" | "--deployment-root" | "--retire-missing" | "--output"
+            | "--repository" | "--revision" | "--url" | "--composition" | "--lock"
+            | "--archive" => {
                 index += 1;
                 let value = rest.get(index).ok_or_else(usage_error)?;
                 if value.is_empty() || value.starts_with('-') {
@@ -158,6 +159,7 @@ fn parse(rest: &[String], options: &[&'static str]) -> Result<Parsed> {
                     "--source" => "--source",
                     "--python" => "--python",
                     "--external-venv" => "--external-venv",
+                    "--deployment-root" => "--deployment-root",
                     "--retire-missing" => "--retire-missing",
                     "--output" => "--output",
                     "--repository" => "--repository",
@@ -698,6 +700,7 @@ fn prepare_runtime(rest: &[String]) -> Result<i32> {
             "--home",
             "--python",
             "--external-venv",
+            "--deployment-root",
             "--offline",
             "--json",
         ],
@@ -716,12 +719,23 @@ fn prepare_runtime(rest: &[String]) -> Result<i32> {
     if external.as_ref().is_some_and(|path| !path.is_absolute()) {
         return Err(usage_error());
     }
-    print_result(&distribution_service(&parsed)?.prepare_runtime(
-        group,
-        &python,
-        external.as_deref(),
-        has_flag(&parsed, "--offline"),
-    )?)
+    let service = distribution_service(&parsed)?;
+    let result = match value_of(&parsed, "--deployment-root") {
+        Some(path) => service.prepare_runtime_at(
+            group,
+            &python,
+            external.as_deref(),
+            has_flag(&parsed, "--offline"),
+            Path::new(&path),
+        )?,
+        None => service.prepare_runtime(
+            group,
+            &python,
+            external.as_deref(),
+            has_flag(&parsed, "--offline"),
+        )?,
+    };
+    print_result(&result)
 }
 
 // ---------------------------------------------------------------------------

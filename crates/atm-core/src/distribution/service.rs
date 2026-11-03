@@ -352,8 +352,19 @@ impl Service {
         operation: &str,
         targets: &[String],
         original: Option<Node>,
+        state: State,
+        bundle: Option<source::Bundle>,
+    ) -> Result<Plan> {
+        self.plan_from_state_with_owner(operation, targets, original, state, bundle, None)
+    }
+    fn plan_from_state_with_owner(
+        &self,
+        operation: &str,
+        targets: &[String],
+        original: Option<Node>,
         mut state: State,
         bundle: Option<source::Bundle>,
+        previous_home: Option<&Path>,
     ) -> Result<Plan> {
         let mut changes = Vec::new();
         let mut guards = Vec::new();
@@ -362,6 +373,22 @@ impl Service {
         for target in targets {
             let (id, skills) = self.root(target)?;
             let root = skills.parent().ok_or_else(invalid)?.to_path_buf();
+            if operation != "remove"
+                && state.runtimes.values().any(|prepared| {
+                    physical_overlap(
+                        &root,
+                        prepared
+                            .deployment_root
+                            .as_deref()
+                            .unwrap_or(&prepared.root),
+                    )
+                })
+            {
+                return Err(Error::new(
+                    "HARNESS_OWNER_CONFLICT",
+                    "技能安装目标不得与已准备的 runtime 部署位置重叠。",
+                ));
+            }
             let key = physical_key(&root);
             if !selected.insert(key.clone()) {
                 return Err(Error::new(
@@ -378,6 +405,51 @@ impl Service {
                     "HARNESS_OWNER_CONFLICT",
                     "分发目标与现有受管目标重叠。",
                 ));
+            }
+            let owner_path = root.join(".omh-owner.json");
+            let owner_before = transaction::snapshot(&owner_path)?;
+            let owner_after = match &owner_before {
+                None => Some(Node::File(encode(
+                    &json!({"schemaVersion":1,"owner":"atm","manager":self.home,"target":root}),
+                )?)),
+                Some(Node::File(bytes)) => {
+                    let mut owner: Value = serde_json::from_slice(bytes).map_err(|_| invalid())?;
+                    let current = owner["manager"] == json!(self.home);
+                    let previous =
+                        previous_home.is_some_and(|home| owner["manager"] == json!(home));
+                    if owner["schemaVersion"] != 1
+                        || owner["owner"] != "atm"
+                        || owner["target"] != json!(root)
+                        || !(current || previous)
+                    {
+                        return Err(Error::new(
+                            "HARNESS_OWNER_CONFLICT",
+                            "目标由另一管理器拥有；请先由原 owner 卸载并显式交接。",
+                        ));
+                    }
+                    if current {
+                        owner_before.clone()
+                    } else {
+                        owner["manager"] = json!(self.home);
+                        Some(Node::File(encode(&owner)?))
+                    }
+                }
+                _ => return Err(transaction::conflict()),
+            };
+            let owner_after = if operation == "remove" {
+                None
+            } else {
+                owner_after
+            };
+            // Owner fields carry authority; whitespace and unrelated metadata do
+            // not. Preserve their exact bytes unless an explicit handoff changes manager.
+            if owner_before.is_some() || owner_after.is_some() || state.receipts.contains_key(&key)
+            {
+                changes.push(Change {
+                    path: owner_path,
+                    before: owner_before,
+                    after: owner_after,
+                });
             }
             let previous = state.receipts.get(&key).cloned();
             if previous.as_ref().is_some_and(|r| r.target != id) {
@@ -455,13 +527,16 @@ impl Service {
                 }
             }
             let empty = BTreeMap::new();
-            let desired = adapters::plan_owned(
+            let mut desired = adapters::plan_owned(
                 bundle,
                 &self.cache(&state.source_identity),
                 &id,
                 &skills,
                 previous.as_ref().map(|r| &r.shared).unwrap_or(&empty),
             )?;
+            desired
+                .artifacts
+                .extend(runtime::binding_artifacts(bundle, &root, &state.runtimes)?);
             for path in desired
                 .artifacts
                 .iter()
@@ -691,6 +766,22 @@ impl Service {
         external_venv: Option<&Path>,
         offline: bool,
     ) -> Result<Value> {
+        self.prepare_runtime_at(
+            group,
+            python,
+            external_venv,
+            offline,
+            &self.home.join("runtimes"),
+        )
+    }
+    pub fn prepare_runtime_at(
+        &self,
+        group: &str,
+        python: &Path,
+        external_venv: Option<&Path>,
+        offline: bool,
+        deployment_root: &Path,
+    ) -> Result<Value> {
         self.relocation_guard()?;
         let _lock = Lock::acquire(&self.home)?;
         if transaction::pending(&self.home) {
@@ -711,23 +802,41 @@ impl Service {
                 })?,
         )
         .map_err(|_| invalid())?;
-        let prepared = runtime::prepare(
+        // A runtime deployment cannot overlap an installed skill target.
+        if state
+            .receipts
+            .values()
+            .any(|r| physical_overlap(&r.root, deployment_root))
+        {
+            return Err(Error::new(
+                "HARNESS_OWNER_CONFLICT",
+                "runtime 部署位置不得与技能安装目标重叠。",
+            ));
+        }
+        let prepared = runtime::prepare_at(
             &self.home,
             &self.cache(&state.source_identity),
             &spec,
             python,
             external_venv,
             offline,
+            deployment_root,
         )?;
         state.runtimes.insert(group.into(), prepared.clone());
-        transaction::apply(
-            &self.home,
-            vec![Change {
-                path: self.state_path(),
-                before: transaction::snapshot(&self.state_path())?,
-                after: Some(Node::File(encode(&state)?)),
-            }],
+        let targets: Vec<String> = state.receipts.values().map(|r| r.target.clone()).collect();
+        let plan = self.plan_from_state(
+            "refresh",
+            &targets,
+            transaction::snapshot(&self.state_path())?,
+            state.clone(),
+            Some(bundle),
         )?;
+        for guard in &plan.guards {
+            if transaction::snapshot(&guard.path)? != guard.before {
+                return Err(transaction::conflict());
+            }
+        }
+        transaction::apply(&self.home, plan.changes)?;
         Ok(json!({"prepared":prepared,"hooksEnabled":state.hooks.is_some()}))
     }
     pub fn hooks(&self, enable: bool, dry_run: bool) -> Result<Value> {
@@ -1300,6 +1409,9 @@ fn insert_directory(tree: &mut BTreeMap<String, Node>, path: &Path) -> Result<()
 }
 
 fn managed_slot(target: &str, root: &Path, skills: &Path, path: &Path) -> Option<PathBuf> {
+    if path.starts_with(root.join(".omh-runtime")) {
+        return Some(root.join(".omh-runtime"));
+    }
     let (base, depth) = if target == "codex" {
         (root.join("plugins/cache"), 3)
     } else {

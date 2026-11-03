@@ -19,6 +19,7 @@ fn retired_fixture() -> (PathBuf, hooks::HookOwnership, Value) {
             root: root.join("venv"),
             python: root.join("venv/bin/python"),
             external: false,
+            deployment_root: None,
         },
         bundle_root: root,
         hooks_preexisted: true,

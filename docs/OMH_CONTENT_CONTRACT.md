@@ -6,7 +6,9 @@ OMH Hub transition. Installation continues to use the existing Rust service.
 ## Decision and ownership
 
 OMH authors skills, optional script runtimes, compositions and versions. ATM owns
-target policy, acquisition, plans, receipts, runtime preparation and recovery.
+target policy, acquisition, plans, target receipts, runtime protocol integration and recovery.
+OMH owns the shared Python runtime implementation and its standalone distributor;
+[ADR 0031](adr/0031-omh-owned-runtime-and-independent-distribution.md) defines the new boundary.
 `policy/harnesses/registry.json` is compiled into ATM; supplier content cannot
 replace it. `content-manifest.json` declares internal content only, never host
 paths, install commands, credentials or hook activation.
@@ -71,3 +73,21 @@ unknown capabilities, archive tampering/traversal/duplicates and cache injection
 CLI tests run export/import/static install with empty PATH. Existing source,
 receipt, transaction/recovery, runtime, native-platform and portable-package gates
 continue to apply; old migration CI does not count as evidence for these changes.
+
+## Shared runtime protocol
+
+Provider-bearing content exports the protocol implementation and POSIX/Windows
+launchers inside `plugins/workflow/scripts`; the existing package/file identities
+verify those bytes. Import and static distribution never execute them. Only an
+explicit runtime prepare/verify or helper startup calls OMH code. ATM persists
+`.omh-runtime` bindings beside the skill root and journals their changes with its
+receipt. A composition using protocol 1 includes the workflow package. Content
+without this provider remains statically usable; selecting a supporting release
+is required for new Python preparation. No Python implementation is vendored in
+ATM, and no standalone installer enters the archive.
+
+Compatibility checks follow capability boundaries: a missing provider still
+permits static installation, and runtime validation probes the actual selected
+interpreter without parsing legacy runtime markers. The bridge does not repeat
+OMH runtime checks. Existing receipt fields and explicit owner handoff remain
+unchanged; same-owner marker formatting is not a new ownership identity.

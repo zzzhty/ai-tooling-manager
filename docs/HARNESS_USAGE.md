@@ -26,10 +26,10 @@ automatic collection hooks. OMH 1.1.0 publishes content only: no distribution
 CLI and no maintained hooks. Auditing and validation scripts belong to their
 consuming skills. Historical report support and skill-maintainer are removed.
 Use the existing `mattpocock-skills:writing-for-agents` for agent-guidance authoring. Third-party
-shell distribution is the user's responsibility; it does not change ATM's
+shell distribution outside OMH standalone is the user's responsibility; it does not change ATM's
 ownership policy or authorize edits to an existing installation.
 
-The official command-line distributor is ATM's existing Rust CLI. Build it
+ATM’s command-line distributor is its existing Rust CLI. OMH also offers a standalone Python distributor for independently owned targets; see [ADR 0031](adr/0031-omh-owned-runtime-and-independent-distribution.md). Build it
 without the desktop crate, frontend tooling or GUI libraries:
 
 ```sh
@@ -77,7 +77,11 @@ To import a reviewed lock use `harness import --lock /absolute/omh.lock.json`, w
 `--archive /absolute/omh.omh` for a local artifact. Import creates only inactive
 cache. The content contract is in [OMH_CONTENT_CONTRACT.md](OMH_CONTENT_CONTRACT.md).
 Python helper groups require explicit `harness runtime prepare <group> --python
-/absolute/interpreter`; `--offline` uses existing hash-locked wheels. No project or
+/absolute/interpreter`. ATM calls the verified OMH runtime implementation;
+`--deployment-root /absolute/runtime-storage` selects final-path venv storage,
+separately from any skill target. `--external-venv /absolute/venv` validates and
+reuses an existing OMH or other venv without modification. `--offline` uses
+existing hash-locked wheels. No project or
 global environment is owned by ATM. Skill-watcher hooks cannot be enabled;
 `uninstall hooks --harness codex --dry-run` previews exact receipt-based retirement.
 Historical logs and unrelated hooks remain intact.
@@ -123,3 +127,29 @@ old binary against new state is not rollback.
 
 Disk distribution, fresh-shell command resolution and helper health are separate
 from actual client loading/invocation. Do not enable hooks to test loading.
+
+## Persistent Python bindings and OMH owner handoff
+
+For supporting content, ATM installs `.omh-runtime` beside the harness skill root.
+After explicit runtime preparation, a future session runs
+`sh /absolute/harness/.omh-runtime/run.sh workflow /absolute/skill/scripts/helper.py ...`
+or the adjacent `run.ps1` on Windows. These OMH launchers select the persistent
+interpreter, verify the group requirements and preserve argv. An explicit
+absolute `OMH_PYTHON` overrides the binding for that invocation; invalid overrides
+fail and helper execution never invokes pip. ATM switches bindings and its receipt
+in one recovery journal; generated machine paths are absent from author content
+and native plugin package bytes.
+
+OMH and ATM share the target owner marker and OS lock. To change products,
+uninstall through the current owner, complete any pending recovery, inspect the
+target, then install with the other owner. Neither automatically adopts a foreign
+marker or an occupied unowned skill slot. Venvs survive skill uninstallation,
+including externally reused environments. The new runtime provider/launchers need
+a supporting OMH content selection; the existing published lock is unchanged in
+this implementation work.
+
+Runtime verification uses actual venv/version/import/dependency checks rather
+than old marker formats. Explicit prepare can complete an interrupted OMH-owned
+venv at the same final path; it does not rebuild unknown incompatible directories
+or modify external venvs. Formatting or annotations in a same-owner target marker
+do not block updates. Invalid explicit Python selections still fail directly.

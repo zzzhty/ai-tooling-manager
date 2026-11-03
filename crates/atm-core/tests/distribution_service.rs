@@ -767,10 +767,8 @@ fn relocation_refuses_existing_destinations_edits_and_preview_apply_races() {
     assert!(service.plan_relocation(&second, content.path()).is_err());
 }
 
-#[cfg(unix)]
 #[test]
-fn relocation_rebuilds_selected_runtimes_at_final_paths_without_moving_old_environments() {
-    use std::os::unix::fs::PermissionsExt;
+fn legacy_runtime_receipts_require_a_provider_bearing_source_before_preparation() {
     let content = fixture();
     let manifest_path = content.path().join("distribution-manifest.json");
     let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
@@ -778,46 +776,157 @@ fn relocation_rebuilds_selected_runtimes_at_final_paths_without_moving_old_envir
         json!([{"id":"workflow","minimumPython":[3,11],"imports":[],"requirementsLock":null}]);
     fs::write(manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
     source::seal(content.path()).unwrap();
-    let (temp, service, old, _) = environment();
-    let python = temp.path().join("test-only-python");
-    fs::write(&python, r#"#!/bin/sh
-if [ "$3" = "-m" ] && [ "$4" = "venv" ]; then
-  /bin/mkdir -p "$5/bin"
-  /bin/cp "$0" "$5/bin/python"
-  /bin/chmod 755 "$5/bin/python"
-  /usr/bin/printf 'home = /fake/base\n' > "$5/pyvenv.cfg"
-  exit 0
-fi
-case "$0" in */bin/python) prefix=$(/usr/bin/dirname "$(/usr/bin/dirname "$0")");; *) prefix=/fake/base;; esac
-/usr/bin/printf '{"version":[3,11],"prefix":"%s","basePrefix":"/fake/base","distributions":{},"modules":{}}\n' "$prefix"
-"#).unwrap();
-    fs::set_permissions(&python, fs::Permissions::from_mode(0o755)).unwrap();
+    let (_temp, service, home, _skills) = environment();
     service.bootstrap(content.path(), false).unwrap();
     service.execute("install", &targets()).unwrap();
-    let before = service
-        .prepare_runtime("workflow", &python, None, true)
-        .unwrap();
-    let old_python = std::path::PathBuf::from(before["prepared"]["python"].as_str().unwrap());
-    let destination = temp.path().join("new manager");
-    let plan = service
-        .plan_relocation(&destination, content.path())
-        .unwrap();
-    assert_eq!(plan.runtime_groups, vec!["workflow"]);
+    let before = fs::read(home.join("state/distribution.json")).unwrap();
+    let python = std::env::current_exe().unwrap();
     assert_eq!(
-        service.relocate(plan.clone(), None, true).unwrap_err().code,
-        "HARNESS_PYTHON_REQUIRED"
+        service
+            .prepare_runtime("workflow", &python, None, true)
+            .unwrap_err()
+            .code,
+        "HARNESS_RUNTIME_PROVIDER_REQUIRED"
     );
-    assert!(!destination.exists());
-    service.relocate(plan, Some(&python), true).unwrap();
-    let owner = Service::new(destination.clone(), temp.path().join("user home")).unwrap();
-    let status = owner.status().unwrap();
-    let new_python =
-        std::path::PathBuf::from(status["runtimes"]["workflow"]["python"].as_str().unwrap());
-    assert!(new_python.starts_with(&destination));
-    assert!(new_python.is_file());
-    assert!(old_python.starts_with(&old));
-    assert!(old_python.is_file());
-    assert_ne!(new_python, old_python);
-    assert!(owner.plan("refresh", &targets()).unwrap().files.is_empty());
-    assert_eq!(status["hooksEnabled"], false);
+    assert_eq!(
+        fs::read(home.join("state/distribution.json")).unwrap(),
+        before
+    );
+    assert!(!home.join("runtimes").exists());
+}
+
+#[test]
+fn a_foreign_omh_owner_is_never_claimed_by_static_distribution() {
+    let content = fixture();
+    let (_temp, service, home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    let root = skills.parent().unwrap();
+    json_write(
+        root,
+        ".omh-owner.json",
+        json!({"schemaVersion":1,"owner":"omh","manager":root.join("other manager"),"target":root}),
+    );
+    let before = fs::read(home.join("state/distribution.json")).unwrap();
+    assert_eq!(
+        service.plan("install", &targets()).unwrap_err().code,
+        "HARNESS_OWNER_CONFLICT"
+    );
+    assert!(!skills.exists());
+    assert_eq!(
+        fs::read(home.join("state/distribution.json")).unwrap(),
+        before
+    );
+}
+#[test]
+fn owner_guard_is_rechecked_if_another_manager_claims_after_preview() {
+    let content = fixture();
+    let (_temp, service, _home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    let plan = service.plan("install", &targets()).unwrap();
+    let root = skills.parent().unwrap();
+    json_write(
+        root,
+        ".omh-owner.json",
+        json!({"schemaVersion":1,"owner":"omh","manager":"TEST_ONLY other","target":root}),
+    );
+    assert!(service.apply(plan).is_err());
+    assert!(!skills.exists());
+}
+#[test]
+fn same_target_os_lock_is_shared_with_the_standalone_owner() {
+    let content = fixture();
+    let (_temp, service, _home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    let plan = service.plan("install", &targets()).unwrap();
+    let root = skills.parent().unwrap();
+    fs::create_dir_all(root).unwrap();
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(root.join(".omh-owner.lock"))
+        .unwrap();
+    file.lock().unwrap();
+    assert_eq!(service.apply(plan).unwrap_err().code, "HARNESS_BUSY");
+    assert!(!skills.exists());
+}
+
+#[test]
+fn prepared_runtime_storage_cannot_become_a_skill_target_in_reverse_order() {
+    let content = fixture();
+    let (_temp, service, home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    let state_path = home.join("state/distribution.json");
+    let original = fs::read(&state_path).unwrap();
+    for deployment in [Some(skills.clone()), None] {
+        let root = skills.join("workflow").join("a".repeat(64));
+        let mut state: Value = serde_json::from_slice(&original).unwrap();
+        state["runtimes"]["workflow"] = json!({"id":"workflow","identity":"a".repeat(64),"root":root,"python":root.join("bin/python"),"external":false});
+        if let Some(path) = deployment {
+            state["runtimes"]["workflow"]["deploymentRoot"] = json!(path);
+        }
+        fs::write(&state_path, serde_json::to_vec(&state).unwrap()).unwrap();
+        let before = fs::read(&state_path).unwrap();
+        assert_eq!(
+            service.plan("install", &targets()).unwrap_err().code,
+            "HARNESS_OWNER_CONFLICT"
+        );
+        assert_eq!(fs::read(&state_path).unwrap(), before);
+        assert!(!skills.exists());
+    }
+}
+
+#[test]
+fn owner_identity_is_independent_of_json_formatting_and_unrelated_metadata() {
+    let content = fixture();
+    let (_temp, service, _home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    service.execute("install", &targets()).unwrap();
+    let marker = skills.parent().unwrap().join(".omh-owner.json");
+    let mut owner: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
+    owner["note"] = json!("preserve this local annotation");
+    let formatted = serde_json::to_vec(&owner).unwrap();
+    fs::write(&marker, &formatted).unwrap();
+    assert!(service
+        .plan("refresh", &targets())
+        .unwrap()
+        .files
+        .is_empty());
+    service.execute("refresh", &targets()).unwrap();
+    assert_eq!(fs::read(&marker).unwrap(), formatted);
+}
+#[test]
+fn removing_an_absent_target_does_not_create_a_target_lock_or_directory() {
+    let content = fixture();
+    let (_temp, service, _home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    service.execute("remove", &targets()).unwrap();
+    assert!(!skills.parent().unwrap().exists());
+}
+
+#[test]
+fn removing_a_pre_marker_receipt_still_uses_the_shared_target_lock() {
+    let content = fixture();
+    let (_temp, service, _home, skills) = environment();
+    service.bootstrap(content.path(), false).unwrap();
+    service.execute("install", &targets()).unwrap();
+    let root = skills.parent().unwrap();
+    fs::remove_file(root.join(".omh-owner.json")).unwrap();
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(root.join(".omh-owner.lock"))
+        .unwrap();
+    lock.lock().unwrap();
+    assert_eq!(
+        service.execute("remove", &targets()).unwrap_err().code,
+        "HARNESS_BUSY"
+    );
+    assert!(skill_path(&skills).is_file());
+    drop(lock);
+    service.execute("remove", &targets()).unwrap();
+    assert!(!skill_path(&skills).exists());
 }
