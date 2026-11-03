@@ -2,7 +2,8 @@
 """Exercise an extracted native distribution offline with no Python on its PATH.
 
 The test runner uses Python; the tested CLI gets an empty PATH and a fake home.
-No real accounts, installations, configuration, venvs or network are used.
+The optional runtime smoke prepares disposable venvs through OMH's provider.
+No real accounts, installations, configuration or network are used.
 """
 import argparse
 import ast
@@ -59,6 +60,60 @@ def verify_runtime_payload(cache: Path, manifest: dict, identity: str, env: dict
     print(f"DISTRIBUTION_PAYLOAD=PASS: {len(catalog['skills'])} catalog entries, skill-owned helpers, no venv/hooks", flush=True)
 
 
+def verify_shared_runtime(cli: Path, env: dict, root: Path):
+    """Run the selected OMH provider through ATM and persistent launchers."""
+    def run(*arguments):
+        result = subprocess.run([str(cli), *arguments], cwd=root, env=env,
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        if result.returncode:
+            raise RuntimeError(f"{arguments}: {result.stdout}\n{result.stderr}")
+        return json.loads(result.stdout)
+
+    user = Path(env["HOME"])
+    deployment = root / "runtime storage 空间"
+    run("install", "skills", "--harness", "claude-code")
+    prepared = {}
+    for group in ("maintenance", "workflow"):
+        prepared[group] = run("harness", "runtime", "prepare", group, "--python",
+            str(Path(sys.executable).resolve()), "--deployment-root", str(deployment), "--offline")["prepared"]
+        assert Path(prepared[group]["root"]).is_relative_to(deployment)
+    binding = user / ".claude/.omh-runtime"
+    if os.name == "nt":
+        shell = shutil.which("powershell") or shutil.which("pwsh")
+        assert shell, "native PowerShell is required to check the Windows launcher"
+        command = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(binding / "run.ps1")]
+    else:
+        command = ["/bin/sh", str(binding / "run.sh")]
+
+    def launch(group, script, *arguments, child_env=env):
+        return subprocess.run([*command, group, str(script), *arguments], cwd=root, env=child_env,
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", timeout=30)
+
+    for skill, helper, group in (
+        ("doc-alignment", "audit_docs.py", "maintenance"),
+        ("long-running-goal", "check_goal_ready.py", "workflow"),
+        ("sop", "check_sop_ready.py", "workflow"),
+        ("summary-in-html", "collect_summary_inputs.py", "workflow"),
+    ):
+        result = launch(group, user / ".claude/skills" / skill / "scripts" / helper, "--help")
+        assert result.returncode == 0, (skill, result.stdout, result.stderr)
+    probe = root / "argv helper 空间.py"
+    probe.write_text("import json,sys; print(json.dumps({'prefix':sys.prefix,'argv':sys.argv[1:]}))\n", encoding="utf-8")
+    arguments = ["space arg", "中文", "", '"quote"', "$(no shell)", "C:\\path with spaces\\"]
+    result = launch("workflow", probe, *arguments)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    actual = json.loads(result.stdout)
+    assert actual["argv"] == arguments
+    assert Path(actual["prefix"]).resolve() == Path(prepared["workflow"]["root"]).resolve()
+    invalid = launch("workflow", probe, child_env={**env, "OMH_PYTHON": str(root / "missing interpreter")})
+    assert invalid.returncode != 0, "invalid explicit interpreter silently fell back"
+    assert not (user / ".oh-my-harness").exists(), "ATM created an OMH standalone manager"
+    run("uninstall", "skills", "--harness", "claude-code")
+    assert all(Path(item["root"]).is_dir() for item in prepared.values())
+    print("DISTRIBUTION_RUNTIME=PASS: selected provider, explicit deployment, both groups, four helpers, "
+          "persistent launchers, argv, invalid override and retained venvs", flush=True)
+
+
 
 def main():
     # Native command JSON and CI logs use UTF-8 even with a Windows legacy locale.
@@ -68,6 +123,7 @@ def main():
     parser.add_argument("--payload-only", type=Path, help="check a verified payload with an isolated runner")
     parser.add_argument("--cli", type=Path)
     parser.add_argument("--cli-only", action="store_true", help="validate an official CLI-only archive without a desktop executable")
+    parser.add_argument("--runtime-smoke", action="store_true", help="prepare isolated OMH runtimes and execute installed helpers")
     args = parser.parse_args()
     if args.payload_only:
         if not args.cli:
@@ -75,14 +131,18 @@ def main():
         source = args.payload_only.resolve()
         with tempfile.TemporaryDirectory(prefix="ATM_TEST_ONLY_payload_") as temporary:
             root = Path(temporary).resolve()
+            # Keep the runtime's module cache location: omitting it makes an
+            # isolated Windows PowerShell repeat expensive startup analysis.
             env = {key: value for key, value in os.environ.items()
-                   if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
+                   if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PSMODULEANALYSISCACHEPATH"}}
             env.update(PATH="", HOME=str(root), USERPROFILE=str(root), ATM_HOME=str(root / 'manager'))
             result = subprocess.run([str(args.cli.resolve()), 'harness', 'bootstrap', '--source', str(source)],
                                     env=env, capture_output=True, text=True, encoding='utf-8', check=True)
             status = json.loads(result.stdout)
             verify_runtime_payload(Path(status['manager']['repository']), read_content_manifest(source),
                                    status['manager']['revision'], env, root)
+            if args.runtime_smoke:
+                verify_shared_runtime(args.cli.resolve(), env, root)
         return
     if args.archive is None:
         parser.error("archive or --payload-only is required")
@@ -103,7 +163,7 @@ def main():
         user.mkdir()
         home = user / "manager with spaces"
         env = {key: value for key, value in os.environ.items()
-               if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
+               if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PSMODULEANALYSISCACHEPATH"}}
         env.update(PATH="", HOME=str(user), USERPROFILE=str(user), ATM_HOME=str(home),
                    APPDATA=str(user / "appdata"), LOCALAPPDATA=str(user / "localappdata"),
                    XDG_DATA_HOME=str(user / ".local/share"), XDG_CONFIG_HOME=str(user / ".config"))
@@ -188,6 +248,8 @@ def main():
         scope = "extracted CLI-only release" if args.cli_only else "complete extracted release (CLI lifecycle + desktop resources + runtime payload)"
         print(f"DISTRIBUTION_SMOKE=PASS: {scope}, empty PATH, offline cache, Unicode/spaces, "
               "plan/apply, native Codex projection, status, user-edit conflict and configuration preservation")
+        if args.runtime_smoke:
+            verify_shared_runtime(cli, env, root)
 
 
 if __name__ == "__main__":
