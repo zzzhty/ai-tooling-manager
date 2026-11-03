@@ -49,7 +49,7 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then suffix=".exe"; archive="zip"; fi
           python scripts/Prepare-Content.py --cli "target/release/atm${suffix}"
           python scripts/Package-Release.py --cli-only --output artifacts/atm-cli
-          python scripts/Test-Distribution.py --cli-only "artifacts/atm-cli.${archive}"
+          python scripts/Test-Distribution.py --cli-only --runtime-smoke "artifacts/atm-cli.${archive}"
       - uses: actions/upload-artifact@v6
         with:
           name: atm-cli-${{ runner.os }}
