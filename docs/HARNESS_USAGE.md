@@ -16,15 +16,21 @@ static distribution.
 
 ## Independent versions and CLI-only packages
 
-ATM application 0.2.0 binds OMH Hub 1.1.0 by full revision and digests in
+ATM application 0.2.0 binds reissued OMH 1.1.1 by full revision and digests in
 `content/omh.lock.json`; application and content versions are independent.
-The pinned v1.1.0 assets are public and the clean-fetch validation passed
-before this binding merged (PR #7/#8; CI runs 40519377781 and 40624948561,
-then main run 40627262161).
+The reissue replaces v1.1.1's original source/assets with revision
+`74f6145b77041bd50654bbe3e53a7900399a5c68`, under explicit user authorization.
+Its lock and archive are verified together; old v1.1.1 locks retain their old
+digests and need an explicit reviewed update. Existing caches, receipts and
+installations keep their identities until the normal plan/apply workflow.
+The prior v1.1.0 binding passed clean-fetch validation before merging (PR #7/#8;
+CI runs 40519377781, 40624948561 and main run 40627262161).
 OMH 1.0.0 is the historical pre-Hub baseline with the old installer and Watcher
 automatic collection hooks. OMH 1.1.0 publishes content only: no distribution
 CLI and no maintained hooks. Auditing and validation scripts belong to their
-consuming skills. Historical report support and skill-maintainer are removed.
+consuming skills. Reissued 1.1.1 adds OMH standalone distribution and the shared
+Python runtime provider; ATM keeps Rust distribution and its own receipts.
+Historical report support and skill-maintainer are removed.
 Use the existing `mattpocock-skills:writing-for-agents` for agent-guidance authoring. Third-party
 shell distribution outside OMH standalone is the user's responsibility; it does not change ATM's
 ownership policy or authorize edits to an existing installation.
@@ -56,7 +62,7 @@ available and the ordinary clean-fetch CI has passed.
 Changing the source lock does not migrate an existing Home. A Home that
 installed content under the superseded 1.2.0-bound lock keeps those content
 identities, receipts, caches, venvs and recovery archives; moving it to the
-pinned 1.1.0 release remains an explicit preview/apply. Do not relabel records.
+pinned release remains an explicit preview/apply. Do not relabel records.
 
 ```sh
 atm harness bootstrap
@@ -145,8 +151,16 @@ uninstall through the current owner, complete any pending recovery, inspect the
 target, then install with the other owner. Neither automatically adopts a foreign
 marker or an occupied unowned skill slot. Venvs survive skill uninstallation,
 including externally reused environments. The new runtime provider/launchers need
-a supporting OMH content selection; the existing published lock is unchanged in
-this implementation work.
+the provider-bearing OMH content now pinned by this repository. To check a clean
+payload with actual isolated runtime preparation and all four helper consumers:
+
+```sh
+python scripts/Test-Distribution.py --payload-only harness --cli target/debug/atm --runtime-smoke
+```
+
+The three native CLI package jobs run this explicit smoke against the extracted
+published payload. Static distribution is checked first with no Python on PATH;
+only the additional smoke supplies a bootstrap interpreter and prepares venvs.
 
 Runtime verification uses actual venv/version/import/dependency checks rather
 than old marker formats. Explicit prepare can complete an interrupted OMH-owned
