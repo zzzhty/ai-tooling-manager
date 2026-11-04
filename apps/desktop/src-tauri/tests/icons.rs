@@ -32,7 +32,7 @@ fn native_containers_preserve_rgba_sizes_and_repeatable_exports() {
     }
     let ico = fs::read(temp.path().join("icon.ico")).unwrap();
     assert_eq!(&ico[..6], &[0, 0, 1, 0, 8, 0]);
-    for entry in ico[6..134].chunks_exact(16) {
+    for entry in ico[6..134].as_chunks::<16>().0 {
         let size = if entry[0] == 0 { 256 } else { entry[0] as u32 };
         let len = u32::from_le_bytes(entry[8..12].try_into().unwrap()) as usize;
         let offset = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
@@ -79,7 +79,11 @@ fn native_containers_preserve_rgba_sizes_and_repeatable_exports() {
         assert_eq!(width, size);
         assert_eq!(pixels[3], 0, "transparent corners");
         assert!(
-            pixels.chunks_exact(4).any(|p| p[3] > 0 && p[3] < 255),
+            pixels
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .any(|p| p[3] > 0 && p[3] < 255),
             "antialiased edges"
         );
     }
