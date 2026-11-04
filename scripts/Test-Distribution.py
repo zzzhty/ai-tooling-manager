@@ -157,8 +157,18 @@ def main():
         desktop = package / ("atm-desktop.exe" if os.name == "nt" else "atm-desktop")
         if args.cli_only:
             assert not desktop.exists(), "desktop binary leaked into CLI-only package"
+            assert not (package / "icons").exists(), "desktop icons leaked into CLI-only package"
         else:
             assert desktop.is_file(), "desktop binary missing from release archive"
+            icons = package / "icons"
+            for size in (16, 20, 24, 32, 48, 64, 128, 256, 512, 1024):
+                data = (icons / f"icon-{size}.png").read_bytes()
+                assert data[:8] == b"\x89PNG\r\n\x1a\n"
+                assert [int.from_bytes(data[i:i+4], "big") for i in (16, 20)] == [size, size]
+            assert (icons / "icon.png").read_bytes() == (icons / "icon-256.png").read_bytes()
+            assert (icons / "icon.ico").read_bytes()[:6] == b"\x00\x00\x01\x00\x08\x00"
+            assert (icons / "icon.icns").read_bytes()[:4] == b"icns"
+
         user = root / "user"
         user.mkdir()
         home = user / "manager with spaces"

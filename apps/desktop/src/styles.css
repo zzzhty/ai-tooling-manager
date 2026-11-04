@@ -59,7 +59,7 @@ p + p { margin-top: 6px; }
 .skip-link:focus { top: var(--size-px-2); }
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: var(--size-px-3); padding: 22px 30px; background: var(--bg-raised); border-bottom: var(--border-size-1) solid var(--border-plain); }
 .identity { display: flex; align-items: center; gap: 13px; }
-.app-mark { display: grid; place-items: center; width: 42px; height: 42px; border: var(--border-size-1) solid var(--border-appmark); border-radius: 12px; color: var(--accent-600); background: var(--bg-appmark); font-size: 29px; }
+.app-mark { display: block; flex: none; width: 42px; height: 42px; }
 .identity p { color: var(--ink-500); font-size: 10px; letter-spacing: 1.4px; margin-top: 5px; }
 .version { font-size: 9px; letter-spacing: .8px; margin-left: 9px; }
 .local-badge { font-size: 11px; color: var(--success-700); background: var(--success-050); border: var(--border-size-1) solid var(--success-200); padding: 6px 10px; border-radius: 7px; white-space: nowrap; }

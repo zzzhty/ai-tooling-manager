@@ -1,8 +1,10 @@
+import { appIconUrl } from './icon';
+
 /** Static, trusted markup only. All file names, labels and IPC values use textContent. */
 export const layout = `
 <a class="skip-link" href="#main">跳到工作区</a>
 <header class="app-header">
-  <div class="identity"><span class="app-mark" aria-hidden="true">⌘</span><div><h1>AI Tooling Manager</h1><p>ATM · LOCAL AI TOOL MANAGER <span class="version">RUST · 0.2</span></p></div></div>
+  <div class="identity"><img class="app-mark" src="${appIconUrl}" width="42" height="42" alt="" aria-hidden="true"><div><h1>AI Tooling Manager</h1><p>ATM · LOCAL AI TOOL MANAGER <span class="version">RUST · 0.2</span></p></div></div>
   <span class="local-badge"><span aria-hidden="true">●</span> 本机加密 · 按需查询</span>
 </header>
 <div class="app-shell">
