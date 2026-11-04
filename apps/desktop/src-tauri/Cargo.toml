@@ -19,6 +19,8 @@ required-features = ["desktop"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 png = "0.18"
+serde.workspace = true
+serde_json.workspace = true
 
 [dependencies]
 tauri = { version = "2", features = [], optional = true }
@@ -31,5 +33,6 @@ zeroize.workspace = true
 chrono.workspace = true
 
 [dev-dependencies]
+png = "0.18"
 tempfile = "3.23"
 

@@ -44,6 +44,14 @@ def main():
     destination.mkdir(parents=True, exist_ok=False)
     for binary in binaries:
         shutil.copy2(binary, destination / binary.name)
+    if not args.cli_only:
+        icons = destination / "icons"
+        icons.mkdir()
+        names = ["icon.png", "icon.ico", "icon.icns"] + [
+            f"icon-{size}.png" for size in (16, 20, 24, 32, 48, 64, 128, 256, 512, 1024)
+        ]
+        for name in names:
+            shutil.copy2(repo / "apps/desktop/src-tauri/icons" / name, icons / name)
     payload = destination / "harness"
     payload.mkdir()
     # Rust validates every path and digest before this build-only copier runs.

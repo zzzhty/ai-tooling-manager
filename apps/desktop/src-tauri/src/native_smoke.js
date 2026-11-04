@@ -24,6 +24,11 @@
   }});
   try {
     await until(() => document.querySelector('#keys-list')?.textContent.includes('演示') && enabled('[data-panel="usage"]'));
+    await until(() => {
+      const mark = document.querySelector('img.app-mark');
+      return mark?.complete && mark.naturalWidth > 0;
+    });
+    assert(document.querySelector('img.app-mark').src === document.querySelector('link[rel="icon"]').href, 'header and favicon must share the app icon');
     await progress('ready');
     // Wait for actual native ACL receipt, bounded independently of UI timing.
     let capabilityDenied = false;

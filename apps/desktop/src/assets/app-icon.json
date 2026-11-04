@@ -1,0 +1,16 @@
+{
+  "size": 64,
+  "background": { "x": 2, "y": 2, "width": 60, "height": 60, "radius": 13 },
+  "gradientStart": [5, 57, 75],
+  "gradientEnd": [7, 83, 101],
+  "foreground": [253, 254, 255],
+  "accent": [255, 113, 84],
+  "shapes": [
+    { "paint": "accent", "rect": { "x": 20, "y": 11, "width": 24, "height": 18, "radius": 6 } },
+    { "paint": "background", "rect": { "x": 24, "y": 15.5, "width": 16, "height": 13.5, "radius": 2 } },
+    { "paint": "foreground", "rect": { "x": 10, "y": 21, "width": 44, "height": 8, "radius": 7, "bottomRadius": 1 } },
+    { "paint": "foreground", "rect": { "x": 12, "y": 32, "width": 40, "height": 21, "radius": 0, "bottomRadius": 6 } },
+    { "paint": "background", "points": [[23,36],[31,41.5],[23,47]], "strokeWidth": 4.2 },
+    { "paint": "accent", "rect": { "x": 33, "y": 45.5, "width": 12, "height": 3.5, "radius": 1.75 } }
+  ]
+}
