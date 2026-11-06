@@ -81,6 +81,31 @@ describe('vault safety and lifecycle', () => {
     expect(input('confirm-glm-query').checked).toBe(true);
     expect(input('confirm-storage').checked).toBe(false);
   });
+  it('shows the persistent connected state when the snapshot reports storageReady', async () => {
+    const data = fixture(); data.storageKind = 'linux_secret_service'; data.storageReady = true;
+    vi.mocked(api.snapshot).mockResolvedValue(data);
+    await app.start();
+    expect(get('storage-connect').hidden).toBe(false);
+    expect(get('storage-status').hidden).toBe(false);
+    expect(get('storage-status').textContent).toContain('已连接');
+    expect(get('storage-confirm-line').hidden).toBe(true);
+    expect(get<HTMLButtonElement>('connect-storage').textContent).toBe('已连接');
+    expect(get<HTMLButtonElement>('connect-storage').disabled).toBe(true);
+  });
+  it('refreshes the snapshot after a successful storage connect', async () => {
+    const disconnected = fixture(); disconnected.storageKind = 'linux_secret_service'; disconnected.storageReady = false;
+    const connected = fixture(); connected.storageKind = 'linux_secret_service'; connected.storageReady = true;
+    vi.mocked(api.snapshot).mockResolvedValueOnce(disconnected).mockResolvedValue(connected);
+    await app.start();
+    expect(get('storage-status').hidden).toBe(true);
+    input('confirm-storage').checked = true; change('confirm-storage');
+    click('connect-storage');
+    await ready();
+    expect(api.initializeStorage).toHaveBeenCalledWith(true);
+    expect(api.snapshot).toHaveBeenCalledTimes(3);
+    expect(get('storage-status').hidden).toBe(false);
+    expect(get<HTMLButtonElement>('connect-storage').textContent).toBe('已连接');
+  });
   it('still clears confirmations when the page hides while idle', () => {
     input('confirm-glm-query').checked = true; change('confirm-glm-query');
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });

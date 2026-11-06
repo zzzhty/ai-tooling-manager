@@ -52,7 +52,13 @@ export class UsagePanel {
     on('connect-storage', 'click', () => {
       if (!this.input('confirm-storage').checked) return;
       this.input('confirm-storage').checked = false;
-      void this.run('正在连接系统安全存储…', async () => { await this.api.initializeStorage(true); this.notice('安全存储已连接。现在可以保存密钥与加密备份。'); });
+      void this.run('正在连接系统安全存储…', async () => {
+        await this.api.initializeStorage(true);
+        // Re-read the snapshot so the persistent connected state reflects the backend.
+        const snap = await this.api.snapshot();
+        this.setSnapshot({ ...snap, templates: snap.templates ?? [] });
+        this.notice('安全存储已连接。现在可以保存密钥与加密备份。');
+      });
     });
   }
   private get(id: string): HTMLElement { return this.root.querySelector<HTMLElement>('#' + id)!; }
@@ -77,6 +83,12 @@ export class UsagePanel {
     this.get('storage-label').textContent = snapshot.demo ? '演示模式 · 临时假数据' : mac ? 'Keychain · AES-GCM' : linux ? 'Secret Service · AES-GCM' : snapshot.storageKind === 'windows_dpapi' ? 'DPAPI · 当前用户' : '本机系统安全存储';
     this.get('storage-connect').hidden = !(mac || linux) || !!snapshot.demo;
     this.get('storage-connect-title').textContent = mac ? 'macOS Keychain 安全存储连接' : 'Linux 安全存储连接';
+    const ready = snapshot.storageReady === true;
+    this.get('storage-confirm-line').hidden = ready;
+    (this.get('connect-storage') as HTMLButtonElement).textContent = ready ? '已连接' : '连接安全存储';
+    const status = this.get('storage-status');
+    status.hidden = !ready;
+    status.textContent = ready ? '已连接 · 应用主密钥可用，无需重复连接。' : '';
     this.get('storage-connect-description').textContent = mac
       ? '需要可用且已解锁的 macOS Keychain。首次连接会创建本应用专用随机主密钥；已有加密数据缺少主密钥时不会创建替换密钥。密钥库和备份依赖该条目，请勿删除。'
       : '需要可用且已解锁的会话 keyring。首次连接会创建本应用专用的随机主密钥，密钥库和备份依赖该条目；请勿删除。';
