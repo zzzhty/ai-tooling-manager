@@ -35,8 +35,16 @@ fn isolated_secret_service_lifecycle() {
             linux::initialize_storage(false).unwrap_err().code,
             "CONFIRM_REQUIRED"
         );
+        assert!(
+            !linux::storage_connected(),
+            "read-only probe must report disconnected before the first connect"
+        );
         linux::initialize_storage(true).expect("create real Secret Service application item");
         linux::initialize_storage(true).expect("existing item is not replaced");
+        assert!(
+            linux::storage_connected(),
+            "read-only probe must report connected after creation"
+        );
         fs::write(&config, original).unwrap();
         let mut vault = Vault::open(&directory).unwrap();
         let key = vault
@@ -72,6 +80,10 @@ fn isolated_secret_service_lifecycle() {
             secret_service::blocking::SecretService::connect(secret_service::EncryptionType::Dh)
                 .unwrap();
         service.get_default_collection().unwrap().lock().unwrap();
+        assert!(
+            !linux::storage_connected(),
+            "read-only probe must report disconnected while the collection is locked"
+        );
         assert_eq!(
             linux::crypt(b"TEST_ONLY_LOCKED", true).unwrap_err().code,
             "STORAGE_LOCKED"
@@ -83,6 +95,10 @@ fn isolated_secret_service_lifecycle() {
     } else {
         assert_eq!(phase, "reopen");
         // The shell harness restarted the real daemon and unlocked the persisted test keyring.
+        assert!(
+            linux::storage_connected(),
+            "read-only probe must report connected after daemon restart"
+        );
         let vault = Vault::open(&directory)
             .expect("retrieve same persisted master key after daemon restart");
         assert_eq!(vault.snapshot().keys.len(), 1);

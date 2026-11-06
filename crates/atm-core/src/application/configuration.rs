@@ -88,6 +88,8 @@ pub struct ConfigurationSnapshot {
     pub templates: Vec<TemplateView>,
     #[serde(rename = "storageKind")]
     pub storage_kind: &'static str,
+    #[serde(rename = "storageReady", skip_serializing_if = "Option::is_none")]
+    pub storage_ready: Option<bool>,
     pub demo: bool,
 }
 #[derive(Serialize)]
@@ -146,6 +148,7 @@ impl Configuration {
         let snap = self.vault.snapshot();
         Ok(ConfigurationSnapshot {
             storage_kind: storage::kind(),
+            storage_ready: storage::ready(),
             demo: self.demo,
             keys: snap.keys,
             targets: snap

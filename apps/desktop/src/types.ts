@@ -8,7 +8,7 @@ export interface TargetMapping {
 export interface TemplateField { pointer: string; label: string; kind: string }
 export interface TemplateView { id: string; name: string; fields: TemplateField[] }
 export interface TemplateCandidate extends TemplateView { schema: unknown }
-export interface SnapshotView { keys: KeyView[]; targets: TargetMapping[]; templates: TemplateView[]; storageKind?: string; demo?: boolean }
+export interface SnapshotView { keys: KeyView[]; targets: TargetMapping[]; templates: TemplateView[]; storageKind?: string; storageReady?: boolean; demo?: boolean }
 export type UsageStatus = 'ok' | 'unknown' | 'unsupported_auth' | 'unsupported_plan_type' | 'unsupported_version' | 'expired' | 'authentication_failed' | 'rate_limited' | 'stale' | 'unavailable' | 'protocol_error';
 export type GlmRegion = 'china' | 'international';
 export type GlmPlanKind = 'personal' | 'team' | 'api_balance';

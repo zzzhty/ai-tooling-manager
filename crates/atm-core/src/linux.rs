@@ -135,6 +135,16 @@ pub fn initialize_storage(confirmed: bool) -> Result<()> {
     }
     Ok(())
 }
+/// Read-only connection probe for UI state. Never creates, replaces or unlocks anything.
+pub fn storage_connected() -> bool {
+    match connect_keyring() {
+        Ok(service) => match service.search_items(key_attributes()) {
+            Ok(items) => items.locked.is_empty() && items.unlocked.len() == 1,
+            Err(_) => false,
+        },
+        Err(_) => false,
+    }
+}
 pub fn crypt(input: &[u8], protect: bool) -> Result<Zeroizing<Vec<u8>>> {
     if !protect && !input.starts_with(HEADER) {
         return Err(Error::new(

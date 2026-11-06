@@ -125,6 +125,15 @@ pub fn kind() -> &'static str {
         "unsupported"
     }
 }
+/// Persistent secure-storage connection state for UI display; None where no
+/// cheap read-only probe exists. Startup must not create or unlock anything.
+pub fn ready() -> Option<bool> {
+    if cfg!(target_os = "linux") {
+        Some(crate::linux::storage_connected())
+    } else {
+        None
+    }
+}
 
 pub fn initialize(directory: &std::path::Path, confirmed: bool) -> Result<()> {
     if !confirmed {

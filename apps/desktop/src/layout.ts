@@ -36,7 +36,7 @@ export const layout = `
           </form>
         </section>
       </div>
-      <div id="storage-connect" class="info-block" hidden><strong id="storage-connect-title">系统安全存储连接</strong><p id="storage-connect-description">首次连接须由用户确认；密钥库和备份依赖本应用专用主密钥，请勿删除。</p><label class="check-line"><input id="confirm-storage" type="checkbox"><span id="storage-confirm-label">我确认在系统安全存储中创建或连接本应用主密钥。</span></label><button id="connect-storage" class="button secondary" type="button">连接安全存储</button></div>
+      <div id="storage-connect" class="info-block" hidden><strong id="storage-connect-title">系统安全存储连接</strong><p id="storage-connect-description">首次连接须由用户确认；密钥库和备份依赖本应用专用主密钥，请勿删除。</p><label id="storage-confirm-line" class="check-line"><input id="confirm-storage" type="checkbox"><span id="storage-confirm-label">我确认在系统安全存储中创建或连接本应用主密钥。</span></label><button id="connect-storage" class="button secondary" type="button">连接安全存储</button><p id="storage-status" class="help" hidden></p></div>
       <div class="info-block"><strong>本机加密的边界</strong><p>密钥库与备份使用本机系统保护的主密钥加密。Windows 使用当前用户 DPAPI，Linux 使用 Secret Service 与 AES-GCM。应用在处理时需要短暂持有明文；目标配置按目标应用要求写入明文。同一用户下的恶意进程仍可能访问它。</p></div>
     </section>
     <section id="panel-targets" class="panel" aria-labelledby="targets-heading" hidden>
