@@ -128,9 +128,12 @@ pub fn kind() -> &'static str {
 /// Persistent secure-storage connection state for UI display; None where no
 /// cheap read-only probe exists. Startup must not create or unlock anything.
 pub fn ready() -> Option<bool> {
-    if cfg!(target_os = "linux") {
+    #[cfg(target_os = "linux")]
+    {
         Some(crate::linux::storage_connected())
-    } else {
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
         None
     }
 }
