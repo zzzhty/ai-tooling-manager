@@ -138,6 +138,19 @@ P2 与 P3 可并行为两个 PR；P4 必须最后，且要求 P1–P3 全绿。
 - **CI 断层**（python-payloads 删除后 OMH 测试无家）：D4 先确认 OMH 仓库 CI 覆盖后再删。
 - **用户习惯断层**：HARNESS_USAGE 重写版提供逐条命令映射（旧 ATM 命令 → OMH 等价命令）。
 
+## 9. P1 交接演练记录（2026-11-09，隔离目录）
+
+ATM 本地分发工作区与 OMH standalone（74f6145 工作区）在 `/tmp/atm-omh-drill.*`
+完成全链路：ATM bootstrap/install（receipt ready）→ uninstall（receipts/desired 清空，
+owner 标记摘除；残留空目录与未持锁的 `.omh-owner.lock`，列为真实交接的检查清理项）→
+目标检查 → OMH `install`（130 文件、maintenance+workflow 双运行时、owner=omh）→
+OMH `status`（零漂移、无需恢复）。
+
+环境结论：`python3`（uv shim）按目录解析不稳定；`/usr/bin/python3` 缺
+`python3.14-venv`（ensurepip 不可用）；可靠解释器为绝对路径
+`~/.local/share/uv/python/cpython-3.13.15-linux-x86_64-gnu/bin/python3.13`
+（真实 Home 现有运行时即由它创建）。P4 必须显式 `--python` 该绝对路径。
+
 ## 8. 决策点（需确认后冻结设计）
 
 - **D1 本地 skills 动词**：`list/install/copy` 等本地（非 `--harness`）skills 管理是否
