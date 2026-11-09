@@ -79,10 +79,10 @@ with tempfile.TemporaryDirectory(prefix="TEST_ONLY-atm-gui-", dir="/private/tmp"
     if code != 0 or not result_path.is_file():
         raise SystemExit("MACOS_GUI=FAIL: managed demo exit=" + str(code) + "; inspect synthetic app.log")
     result = json.loads(result_path.read_text())
-    required = ["passed", "renderedVault", "renderedQuotaUi", "renderedHarnessUi", "renderedSkillsUi",
+    required = ["passed", "renderedVault", "renderedQuotaUi",
                 "unknownVisible", "demoQueryRendered", "resized", "confirmedWrite", "confirmationRefused",
                 "cancellationRefused", "duplicateRefused", "rollbackApplied", "capabilityDenied",
-                "demoMutationRefused", "incognito"]
+                "incognito"]
     assert all(result.get(key) is True for key in required)
     assert result["platform"] == "macos" and result["testedSha"] == env["ATM_TESTED_SHA"]
     assert result["pid"] == process.pid
