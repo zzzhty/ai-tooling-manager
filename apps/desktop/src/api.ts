@@ -9,20 +9,6 @@ export const desktopApi: DesktopApi = {
   disconnectCodexCli: () => invoke('disconnect_codex_cli'),
   queryCodexUsage: (confirmed) => invoke('query_codex_usage', { confirmed }),
   queryGlmUsage: (region, planKind, keyId, confirmed) => invoke('query_glm_usage', { region, planKind, keyId, confirmed }),
-  harnessStatus: () => invoke('harness_status'),
-  harnessDiagnose: (operation) => invoke('harness_diagnose', { operation }),
-  harnessCapabilities: () => invoke('harness_capabilities'),
-  harnessExecute: (operation, harnesses, confirmed) => invoke('harness_execute', { operation, harnesses, confirmed }),
-  skillsInventory: () => invoke('skills_inventory'),
-  skillsInstall: (sourcePath, rootId, name, confirmed) => invoke('skills_install', { sourcePath, rootId, name, confirmed }),
-  skillsUninstall: (rootId, name, confirmed) => invoke('skills_uninstall', { rootId, name, confirmed }),
-  skillsRestore: (trashId, confirmed) => invoke('skills_restore', { trashId, confirmed }),
-  skillsPurge: (trashId, confirmed) => invoke('skills_purge', { trashId, confirmed }),
-  skillsCopy: (sourceRoot, name, targetRoot, confirmed) => invoke('skills_copy', { sourceRoot, name, targetRoot, confirmed }),
-  pickDirectory: async () => {
-    const selected = await open({ multiple: false, directory: true, title: '选择包含 SKILL.md 的本机技能文件夹' });
-    return typeof selected === 'string' ? selected : null;
-  },
   snapshot: () => invoke('snapshot'),
   saveKey: (id, name, secret) => invoke('save_key', { id, name, secret }),
   deleteKey: (id) => invoke('delete_key', { id }),

@@ -1,6 +1,5 @@
 use atm_core::{
     application::configuration::{ConfigurationSession, TargetView},
-    skills::SkillsService,
     storage::{self, Protector},
     Error, Result, TargetMapping,
 };
@@ -16,7 +15,7 @@ impl Protector for Unavailable {
 }
 
 #[test]
-fn failed_configuration_is_lazy_retryable_and_does_not_block_skills() {
+fn failed_configuration_is_lazy_retryable_and_recovers() {
     let temporary = tempfile::tempdir().unwrap();
     let directory = temporary.path().join("configuration");
     let mut session =
@@ -39,13 +38,9 @@ fn failed_configuration_is_lazy_retryable_and_does_not_block_skills() {
         file.write_all(b"TEST_ONLY_unavailable").unwrap();
     }
     assert_eq!(session.get().err().unwrap().code, "STORAGE_UNAVAILABLE");
-    let skills = SkillsService::new(temporary.path().into(), temporary.path().join("trash"))
-        .with_manager_home(None);
-    assert_eq!(skills.inventory().unwrap().roots.len(), 10);
     fs::remove_file(directory.join(storage::vault_filename())).unwrap();
     fs::write(directory.join("templates.required"), b"TEST_ONLY").unwrap();
     assert_eq!(session.get().err().unwrap().code, "TEMPLATE_STORE_MISSING");
-    assert_eq!(skills.inventory().unwrap().roots.len(), 10);
     fs::remove_file(directory.join("templates.required")).unwrap();
     assert!(session.get().unwrap().snapshot().unwrap().keys.is_empty());
 }

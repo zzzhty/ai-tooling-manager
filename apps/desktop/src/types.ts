@@ -23,20 +23,6 @@ export interface FileResult {
   backupPath: string | null; temporaryPath: string | null;
 }
 export interface BackupView { backupPath: string; filePath: string; createdUtc: string | null; error: SafeError | null }
-export interface HarnessDistribution { name: string; status: string | null; root: string | null; releaseVersion: string | null; updatedAt: string | null }
-export interface HarnessStatusView {
-  source: string; managerHome: string; installed: boolean;
-  managerStatus: string | null; channel: string | null; releaseVersion: string | null; revision: string | null; repository: string | null;
-  harnesses: HarnessDistribution[]; operationKind: string | null; worktreeClean: boolean | null;
-}
-export type HarnessOperation = 'install' | 'refresh' | 'remove' | 'update' | 'repair';
-export interface HarnessCapability { supported: boolean; requiresConfirmation: boolean; explicitHarnesses: boolean; reason?: string }
-export interface HarnessCapabilities { harnesses: string[]; operations: Record<string, HarnessCapability> }
-export type SkillEntryKind = 'engine_managed' | 'lkm_projected' | 'symlink' | 'directory' | 'other';
-export interface SkillEntryView { name: string; kind: SkillEntryKind; displayName: string | null; description: string | null; linkTarget: string | null }
-export interface SkillRootView { id: string; label: string; path: string; exists: boolean; entries: SkillEntryView[] }
-export interface SkillTrashView { id: string; rootId: string; name: string; originPath: string }
-export interface SkillsInventoryView { roots: SkillRootView[]; trash: SkillTrashView[]; managerHome: string | null }
 export interface DesktopApi {
   snapshot(): Promise<SnapshotView>;
   saveKey(id: string | null, name: string, secret: string): Promise<string>;
@@ -57,16 +43,5 @@ export interface DesktopApi {
   disconnectCodexCli(): Promise<void>;
   queryCodexUsage(confirmed: boolean): Promise<UsageSnapshot>;
   queryGlmUsage(region: GlmRegion, planKind: GlmPlanKind, keyId: string | null, confirmed: boolean): Promise<UsageSnapshot>;
-  harnessStatus(): Promise<HarnessStatusView>;
-  harnessDiagnose(operation: 'check' | 'doctor'): Promise<{ operation: string; passed: boolean; exitCode: number }>;
-  harnessCapabilities(): Promise<HarnessCapabilities>;
-  harnessExecute(operation: HarnessOperation, harnesses: string[], confirmed: boolean): Promise<void>;
-  skillsInventory(): Promise<SkillsInventoryView>;
-  skillsInstall(sourcePath: string, rootId: string, name: string, confirmed: boolean): Promise<string>;
-  skillsUninstall(rootId: string, name: string, confirmed: boolean): Promise<string>;
-  skillsRestore(trashId: string, confirmed: boolean): Promise<string>;
-  skillsPurge(trashId: string, confirmed: boolean): Promise<void>;
-  skillsCopy(sourceRoot: string, name: string, targetRoot: string, confirmed: boolean): Promise<string>;
-  pickDirectory(): Promise<string | null>;
 }
 

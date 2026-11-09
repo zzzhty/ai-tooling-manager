@@ -4,7 +4,7 @@ import { appIconUrl } from './icon';
 export const layout = `
 <a class="skip-link" href="#main">跳到工作区</a>
 <header class="app-header">
-  <div class="identity"><img class="app-mark" src="${appIconUrl}" width="42" height="42" alt="" aria-hidden="true"><div><h1>AI Tooling Manager</h1><p>ATM · LOCAL AI TOOL MANAGER <span class="version">RUST · 0.2</span></p></div></div>
+  <div class="identity"><img class="app-mark" src="${appIconUrl}" width="42" height="42" alt="" aria-hidden="true"><div><h1>AI Tooling Manager</h1><p>ATM · LOCAL AI TOOL MANAGER <span class="version">RUST · 0.3</span></p></div></div>
   <span class="local-badge"><span aria-hidden="true">●</span> 本机加密 · 按需查询</span>
 </header>
 <div class="app-shell">
@@ -15,8 +15,6 @@ export const layout = `
       <button type="button" data-panel="templates"><span aria-hidden="true">03</span> 结构模板 <span id="template-count" class="count">0</span></button>
       <button type="button" data-panel="backups"><span aria-hidden="true">04</span> 加密备份与回滚</button>
       <button type="button" data-panel="usage"><span aria-hidden="true">05</span> 套餐与额度</button>
-      <button type="button" data-panel="harness"><span aria-hidden="true">06</span> 内置技能分发</button>
-      <button type="button" data-panel="skills"><span aria-hidden="true">07</span> 本地技能管理</button>
     </nav>
     <div class="sidebar-note"><strong>先预览，再应用</strong><p>仅处理你选择的文件与精确字段。不自动扫描配置或寻找密钥。</p></div>
   </aside>
@@ -107,40 +105,6 @@ export const layout = `
         </section>
       </div>
       <div class="info-block"><strong>如何读额度</strong><p>未知值保持未知。百分比代表该来源报告的窗口用量；不换算固定 token 或请求次数。GLM 周期包含兼容解释，未知周期会明确标注。工具额度独立显示。网络失败时旧快照标为过期快照，认证失败时隐藏旧额度。</p></div>
-    </section>
-    <section id="panel-harness" class="panel" aria-labelledby="harness-heading" hidden>
-      <div class="section-heading"><div><p class="eyebrow">06 / HARNESS</p><h2 id="harness-heading">内置技能分发状态</h2><p>ATM 内置的 harness 技能分发引擎（atm-harness）。读取记录态快照，按需调用内置引擎；不轮询。</p></div><button id="query-harness" class="button secondary" type="button">查询 harness 状态</button></div>
-      <div id="harness-status-result" class="item-list" aria-live="polite"><p class="empty-state">未知 · 尚未查询。</p></div>
-      <div class="card"><h3>harness 诊断</h3><p>按需校验当前安装分发内容与运行环境；doctor 将警告也视为失败。诊断可能启动客户端子进程，其行为由客户端决定，不保证离线。</p><button id="harness-check" type="button" class="button secondary" disabled>校验安装（check）</button> <button id="harness-doctor" type="button" class="button secondary" disabled>严格校验（doctor）</button><p id="harness-diagnostic-result" aria-live="polite">尚未运行诊断。</p></div>
-      <div class="card"><h3>harness 生命周期</h3><p id="harness-capability-note" class="help">先查询状态与 CLI 能力。旧版本或不支持的操作保持禁用。</p><label>操作<select id="harness-operation"><option value="install">安装</option><option value="refresh">刷新</option><option value="remove">移除</option><option value="update">更新</option><option value="repair">修复所选分发（仅现有管理器）</option></select></label><fieldset id="harness-targets"><legend>明确选择目标 harness</legend></fieldset><button id="harness-preview" type="button" class="button secondary" disabled>预览并确认操作</button></div>
-      <div class="info-block"><strong>内置引擎的边界</strong><p>ATM 不直接改写引擎状态、收据或链接。能力支持的操作需选择目标并预览确认，再交由内置引擎执行。需要替换现有指令文件的操作会停止并要求在终端确认，不会自动回答 yes。修复仅使用现有健康运行时和分发，不能恢复事务、重新安装运行时或改 PATH。更新仅在引擎能力支持且完成目标选择与确认后可用；恢复等未支持的操作请在终端用 atm harness 完成。状态仅为记录态快照，不代表实时健康。</p></div>
-    </section>
-    <section id="panel-skills" class="panel" aria-labelledby="skills-heading" hidden>
-      <div class="section-heading"><div><p class="eyebrow">07 / SKILLS</p><h2 id="skills-heading">本地技能管理</h2><p>盘点各工具的技能目录；按需操作，不轮询、不联网。</p></div><button id="inventory-skills" class="button secondary" type="button">盘点技能</button></div>
-      <div class="two-columns">
-        <section class="card" aria-labelledby="skills-install-heading">
-          <h3 id="skills-install-heading">从本机目录安装</h3>
-          <p class="help">只接受含 SKILL.md 的普通目录（不含链接）。超过 512 个文件、8 MB 或 8 层嵌套会被拒绝。</p>
-          <label for="skills-source">技能源目录</label><div class="input-action"><input id="skills-source" readonly placeholder="选择含 SKILL.md 的文件夹"><button id="pick-skills-source" class="button secondary" type="button">选择文件夹</button></div>
-          <label for="skills-name">安装名称</label><input id="skills-name" required maxlength="64" placeholder="默认使用文件夹名">
-          <label for="skills-target-root">目标工具根</label><select id="skills-target-root"></select>
-          <p id="skills-target-note" class="help"></p>
-          <label class="check-line confirmation"><input id="confirm-skills-install" type="checkbox"><span>我已确认安装名称与目标根；同名条目不会被覆盖。</span></label>
-          <button id="install-skill" class="button primary" type="button">安装技能</button>
-        </section>
-        <section class="card" aria-labelledby="skills-copy-heading">
-          <h3 id="skills-copy-heading">跨根复制</h3>
-          <p class="help">把某个根里已盘点的技能复制为另一根的独立副本；同名拒绝。在下方列表点“复制到…”选择源。</p>
-          <p id="copy-source-label" class="help">尚未选择源技能。</p>
-          <label for="copy-target-root">目标工具根</label><select id="copy-target-root"></select>
-          <label class="check-line confirmation"><input id="confirm-skills-copy" type="checkbox"><span>我确认创建独立副本（后续两份内容各自独立）。</span></label>
-          <button id="copy-skill" class="button primary" type="button">复制技能</button>
-        </section>
-      </div>
-      <div id="skills-roots" class="item-list" aria-live="polite"><p class="empty-state">未知 · 尚未盘点。</p></div>
-      <div class="section-heading"><div><p class="eyebrow">TRASH</p><h3>已卸载（保管区）</h3><p>卸载的目录技能保存在本管理器数据目录，可恢复或彻底删除。</p></div></div>
-      <div id="skills-trash" class="item-list" aria-live="polite"><p class="empty-state">尚未盘点。</p></div>
-      <div class="info-block"><strong>技能管理的边界</strong><p>由内置引擎（atm-harness）管理的链接在此只读；变更请在终端用 atm harness 命令（本工具不会改动其链接）。安装到某根的同名技能若与日后引擎的投影冲突，由引擎侧的既有同名保护拒绝，双方内容都不受影响。安装不访问网络，也不接受压缩包；目标根不存在时会自动创建。</p></div>
     </section>
     <section id="preview-section" class="card preview-section" aria-labelledby="preview-heading" hidden tabindex="-1">
       <div class="card-heading"><div><p class="eyebrow">REVIEW / 一次性预览</p><h2 id="preview-heading">遮罩预览</h2></div><span class="pill">所有值完全遮罩</span></div>

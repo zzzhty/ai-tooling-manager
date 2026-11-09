@@ -17,10 +17,10 @@
     throw Error(command + ' unexpectedly succeeded');
   };
   const progress = phase => invoke('report_linux_smoke', {phase, evidence:{
-    renderedVault:false, renderedQuotaUi:false, renderedHarnessUi:false, renderedSkillsUi:false,
+    renderedVault:false, renderedQuotaUi:false,
     unknownVisible:false, demoQueryRendered:false, resized:false, confirmedWrite:false,
     confirmationRefused:false, cancellationRefused:false, duplicateRefused:false,
-    rollbackApplied:false, capabilityDenied:false, demoMutationRefused:false
+    rollbackApplied:false, capabilityDenied:false
   }});
   try {
     await until(() => document.querySelector('#keys-list')?.textContent.includes('演示') && enabled('[data-panel="usage"]'));
@@ -68,9 +68,6 @@
     await refuses('apply_preview', {id:rollback.id, confirmed:true}, 'PREVIEW_EXPIRED');
     assert((await invoke('list_backups')).length === 2, 'rollback must preserve current bytes in another encrypted backup');
     await delay(1500);
-    const demoMutationRefused = await refuses('skills_install', {
-      sourcePath:'TEST_ONLY', rootId:'zcode', name:'TEST_ONLY', confirmed:true
-    }, 'DEMO_READONLY');
 
     await progress('quota');
     const unknown = document.querySelector('#glm-usage-result').textContent.includes('未知');
@@ -82,24 +79,13 @@
     confirm.checked=true; confirm.dispatchEvent(new Event('change'));
     await click('#query-glm');
     await until(() => document.querySelector('#glm-usage-result').textContent.includes('60.0%'));
-    await progress('harness');
-    await click('[data-panel="harness"]');
-    await click('#query-harness');
-    await until(() => document.querySelector('#harness-status-result').textContent.includes('记录就绪'));
-    await progress('skills');
-    await click('[data-panel="skills"]');
-    await click('#inventory-skills');
-    await until(() => document.querySelector('#skills-roots').textContent.includes('内置分发管理'));
-    await until(() => enabled('#inventory-skills'));
     await progress('finished');
     await invoke('report_linux_smoke', {phase:null, evidence:{
       renderedVault:document.querySelector('#keys-list').textContent.includes('••••••••'),
       renderedQuotaUi:!!document.querySelector('#codex-cli') && !!document.querySelector('#query-glm'),
-      renderedHarnessUi:document.querySelector('#harness-status-result').textContent.includes('codex'),
-      renderedSkillsUi:document.querySelector('#skills-roots').textContent.includes('demo-skill'),
       unknownVisible:unknown, demoQueryRendered:document.querySelector('#glm-usage-result').textContent.includes('TEST_ONLY 演示数据'),
       resized:window.innerWidth<=650, confirmedWrite:true, confirmationRefused,
-      cancellationRefused, duplicateRefused, rollbackApplied:true, capabilityDenied, demoMutationRefused
+      cancellationRefused, duplicateRefused, rollbackApplied:true, capabilityDenied
     }});
   } catch { await progress('failed'); }
 })();

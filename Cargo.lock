@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "atm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "atm-core",
  "chrono",
@@ -254,17 +254,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "atm-cli"
-version = "0.2.0"
-dependencies = [
- "atm-core",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "atm-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -278,7 +269,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
- "toml_edit 0.20.2",
  "uuid",
  "windows-sys 0.61.2",
  "zeroize",

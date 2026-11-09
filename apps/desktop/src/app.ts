@@ -1,11 +1,9 @@
 import { layout } from './layout';
 import { UsagePanel } from './usage';
-import { HarnessPanel } from './harness';
-import { SkillsPanel } from './skills';
 import { MASK, NIL_UUID, displayDate, outcomeLabels, pointerIsValid, safeError, schemaText } from './safety';
 import type { BackupView, DesktopApi, FileResult, PreviewView, SnapshotView, TargetMapping, TemplateCandidate } from './types';
 
-type Panel = 'keys' | 'targets' | 'templates' | 'backups' | 'usage' | 'harness' | 'skills';
+type Panel = 'keys' | 'targets' | 'templates' | 'backups' | 'usage';
 const emptySnapshot = (): SnapshotView => ({ keys: [], targets: [], templates: [] });
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -20,8 +18,6 @@ const option = (text: string, value: string): HTMLOptionElement => {
 
 export class DesktopApp {
   private readonly usage: UsagePanel;
-  private readonly harness: HarnessPanel;
-  private readonly skills: SkillsPanel;
   private data: SnapshotView = emptySnapshot();
   private selected = new Set<string>();
   private currentPreview: PreviewView | null = null;
@@ -40,10 +36,6 @@ export class DesktopApp {
   constructor(private readonly root: HTMLElement, private readonly api: DesktopApi) {
     root.innerHTML = layout;
     this.usage = new UsagePanel(root, api, (message, action) => this.run(message, action), message => this.notice(message));
-    this.harness = new HarnessPanel(root, api, (message, action) => this.run(message, action), message => this.notice(message),
-      (description, action) => this.askDelete(description, action));
-    this.skills = new SkillsPanel(root, api, (message, action) => this.run(message, action), message => this.notice(message),
-      (description, action) => this.askDelete(description, action));
     this.bind();
     this.renderData();
     this.refreshControls();
@@ -83,7 +75,7 @@ export class DesktopApp {
     });
   }
   dispose(): void {
-    this.disposed = true; this.usage.dispose(); this.harness.dispose(); this.skills.dispose(); this.clearSecret(); this.revision++;
+    this.disposed = true; this.usage.dispose(); this.clearSecret(); this.revision++;
     for (const remove of this.listeners) remove();
     this.listeners.length = 0;
   }
@@ -115,7 +107,7 @@ export class DesktopApp {
     // system dialog (for example the keyring prompt during a storage
     // connect), not the user leaving: keep the user's confirmations then.
     // Leaving while idle still invalidates every confirmation.
-    if (!this.busy) { this.clearSecret(); this.usage.clearConfirmations(); this.skills.clearConfirmations(); }
+    if (!this.busy) { this.clearSecret(); this.usage.clearConfirmations(); }
     this.invalidateLocal();
     // No automatic mutation retry. A delayed preview response is also discarded.
     void this.api.cancelPreview().catch(() => undefined);
@@ -123,11 +115,11 @@ export class DesktopApp {
   }
   private switchPanel(panel: Panel): void {
     if (this.busy) return;
-    this.clearSecret(); this.usage.clearConfirmations(); this.skills.clearConfirmations(); this.input('confirm-preview').checked = false; this.refreshControls();
+    this.clearSecret(); this.usage.clearConfirmations(); this.input('confirm-preview').checked = false; this.refreshControls();
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-panel]')) {
       if (button.dataset.panel === panel) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
     }
-    for (const name of ['keys', 'targets', 'templates', 'backups', 'usage', 'harness', 'skills']) this.get(`panel-${name}`).hidden = name !== panel;
+    for (const name of ['keys', 'targets', 'templates', 'backups', 'usage']) this.get(`panel-${name}`).hidden = name !== panel;
     if (panel === 'backups' && this.loaded) void this.refreshBackups();
   }
 
@@ -185,7 +177,7 @@ export class DesktopApp {
     for (const control of this.root.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement>('input,button,select,textarea')) control.disabled = this.busy || !this.loaded;
     // These domains do not depend on the encrypted configuration service.
     for (const control of this.root.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>(
-      '[data-panel], #panel-skills input, #panel-skills button, #panel-skills select, #panel-harness input, #panel-harness button, #panel-harness select, #panel-usage input, #panel-usage button, #panel-usage select, #dialog-confirm, #dialog-cancel, #refresh',
+      '[data-panel], #panel-usage input, #panel-usage button, #panel-usage select, #dialog-confirm, #dialog-cancel, #refresh',
     )) control.disabled = this.busy;
     const disable = (id: string, condition: boolean) => { this.get<HTMLButtonElement>(id).disabled = this.busy || !this.loaded || condition; };
     disable('preview-selected', this.selected.size === 0);
@@ -195,8 +187,6 @@ export class DesktopApp {
     disable('infer-template', !this.input('template-source').value);
     disable('save-template', !this.candidate || !this.input('confirm-template').checked || !this.selectedCandidatePointers().length);
     this.usage.refreshControls(this.busy, true);
-    this.harness.refreshControls(this.busy, true);
-    this.skills.refreshControls(this.busy, true);
     const selection = this.get('selection-count'); selection.textContent = `已选择 ${this.selected.size} 项`;
     this.get('select-all').textContent = this.selected.size === this.data.targets.length && this.selected.size > 0 ? '取消全选' : '全选';
   }

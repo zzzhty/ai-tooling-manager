@@ -14,15 +14,11 @@ export npm_config_userconfig="$atm_cache/npm-user.conf"
 export npm_config_globalconfig="$atm_cache/npm-global.conf"
 export npm_config_cache="$atm_cache/npm"
 cargo fmt --all --check
-cargo clippy --locked --offline -p atm-core -p atm-cli -p atm --no-default-features --all-targets -- -D warnings
-cargo test --locked --offline -p atm-core -p atm-cli -p atm --no-default-features --all-targets
+cargo clippy --locked --offline -p atm-core -p atm --no-default-features --all-targets -- -D warnings
+cargo test --locked --offline -p atm-core -p atm --no-default-features --all-targets
 npm run check
 npm test
 npm run build
-# OMH owns authoring and semantic suites; CI runs them from the immutable locked
-# revision in the independent repository. Here exercise the imported runtime and
-# catalog with the explicit runner; static ATM still receives empty PATH.
-python3 scripts/Test-Distribution.py --payload-only "$atm_repo/harness" --cli "$atm_repo/target/debug/atm"
 git diff --check
 python3 - <<'PY'
 import json, re, subprocess

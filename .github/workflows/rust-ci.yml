@@ -17,46 +17,6 @@ concurrency:
   group: rust-ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  cli-only:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cli-only-${{ hashFiles('Cargo.lock') }}-${{ github.event.pull_request.head.sha || github.sha }}
-          restore-keys: ${{ runner.os }}-cli-only-${{ hashFiles('Cargo.lock') }}-
-      - name: Build and validate the CLI package without desktop tooling
-        shell: bash
-        run: |
-          cargo build --locked --release -p atm-cli
-          suffix=""; archive="tar.gz"
-          if [ "$RUNNER_OS" = Windows ]; then suffix=".exe"; archive="zip"; fi
-          python scripts/Prepare-Content.py --cli "target/release/atm${suffix}"
-          python scripts/Package-Release.py --cli-only --output artifacts/atm-cli
-          python scripts/Test-Distribution.py --cli-only --runtime-smoke "artifacts/atm-cli.${archive}"
-      - uses: actions/upload-artifact@v6
-        with:
-          name: atm-cli-${{ runner.os }}
-          path: |
-            artifacts/atm-cli.tar.gz
-            artifacts/atm-cli.zip
-          if-no-files-found: error
   core:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' }}
     runs-on: ubuntu-24.04
@@ -75,11 +35,6 @@ jobs:
             target
           key: ${{ runner.os }}-${{ github.repository }}-rust-v2-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-${{ github.repository }}-rust-v2-${{ hashFiles('Cargo.lock') }}-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Prepare pinned OMH content with Rust
-        run: python scripts/Prepare-Content.py
       - name: Rust stable components
         run: rustup component add rustfmt clippy
       - name: Check formatting
@@ -87,12 +42,12 @@ jobs:
         continue-on-error: true
         run: cargo fmt --all --check
       - name: Core static checks
-        run: cargo clippy --locked -p atm-core -p atm-cli -p atm --no-default-features --all-targets -- -D warnings
+        run: cargo clippy --locked -p atm-core -p atm --no-default-features --all-targets -- -D warnings
       - name: Isolated default ACL regression
         run: cargo test --locked -p atm-core --test linux inherited_default_acl_cannot_grant_new_access_on_config_replacement -- --exact --nocapture
       - name: Core and schema synthetic tests
         if: always() && !cancelled()
-        run: cargo test --locked -p atm-core -p atm-cli -p atm --no-default-features --all-targets
+        run: cargo test --locked -p atm-core -p atm --no-default-features --all-targets
       - name: Prepare reproducibility artifacts
         if: always()
         run: |
@@ -119,63 +74,6 @@ jobs:
       - name: Require clean formatting
         if: always() && steps.format.outcome != 'success'
         run: exit 1
-  python-payloads:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            python: '3.11'
-          - os: ubuntu-24.04
-            python: '3.12'
-          - os: windows-latest
-            python: '3.12'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: bash
-        working-directory: .validation-cache/omh-source
-    env:
-      PYTHONDONTWRITEBYTECODE: '1'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Read immutable OMH source revision
-        id: omh
-        working-directory: .
-        run: |
-          python - <<'PYCODE'
-          import json, os
-          from pathlib import Path
-          lock = json.loads(Path('content/omh.lock.json').read_text())
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              print('revision=' + lock['revision'], file=output)
-          PYCODE
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: zzzhty/oh-my-harness
-          ref: ${{ steps.omh.outputs.revision }}
-          path: .validation-cache/omh-source
-          persist-credentials: false
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Developer and payload validation dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Byte-compile payload and developer sources
-        run: python -m compileall -q scripts tests plugins/maintenance plugins/workflow
-      - name: Developer tooling tests
-        run: python -m unittest discover -s tests -p "test_*.py"
-      - name: Maintenance workflow tests
-        run: python -m unittest discover -s plugins/maintenance/tests -p "test_*.py"
-      - name: Workflow plugin tests
-        run: python -m unittest discover -s plugins/workflow/tests -p "test_*.py"
-      - name: Distribution identity ledger check
-        run: python scripts/check_plugin_generations.py
   linux-desktop:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' || inputs.validation_scope == 'linux-gui' }}
     runs-on: ubuntu-24.04
@@ -185,9 +83,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -203,8 +98,6 @@ jobs:
             target
           key: linux-desktop-${{ github.repository }}-v2-${{ hashFiles('Cargo.lock') }}-${{ github.event.pull_request.head.sha || github.sha }}
           restore-keys: linux-desktop-${{ github.repository }}-v2-${{ hashFiles('Cargo.lock') }}-
-      - name: Prepare pinned OMH content with Rust
-        run: python scripts/Prepare-Content.py
       - name: Record exact tested head
         run: |
           mkdir -p artifacts/linux-ci
@@ -227,7 +120,7 @@ jobs:
           dbus-run-session -- bash scripts/Test-LinuxKeyring.sh 2>&1 | tee artifacts/linux-ci/keyring.log
           python3 -c 'from pathlib import Path; s=Path("artifacts/linux-ci/keyring.log").read_text(); assert "SECRET_SERVICE_LIFECYCLE_PHASE=PASS (create)" in s and "SECRET_SERVICE_LIFECYCLE_PHASE=PASS (reopen)" in s and "SECRET_SERVICE_LIFECYCLE=PASS:" in s'
       - name: Build native Linux Tauri executable
-        run: cargo build --locked --release -p atm -p atm-cli --features smoke-tests
+        run: cargo build --locked --release -p atm --features smoke-tests
       - name: Native Linux fake-data GUI smoke
         run: xvfb-run -a dbus-run-session -- bash scripts/Test-LinuxGui.sh
       - name: Preserve Linux native evidence
@@ -240,8 +133,8 @@ jobs:
             artifacts/linux-gui
       - name: Package and test the extracted Linux distribution
         run: |
-          python scripts/Package-Release.py --output artifacts/ai-tooling-manager-linux-x64
-          python scripts/Test-Distribution.py artifacts/ai-tooling-manager-linux-x64.tar.gz
+          python3 scripts/Package-Release.py --output artifacts/ai-tooling-manager-linux-x64
+          python3 scripts/Test-Distribution.py artifacts/ai-tooling-manager-linux-x64.tar.gz
       - name: Preserve Linux preview executable
         uses: actions/upload-artifact@v6
         with:
@@ -268,9 +161,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -300,8 +190,6 @@ jobs:
             target
           key: ${{ runner.os }}-${{ github.repository }}-rust-v2-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-${{ github.repository }}-rust-v2-${{ hashFiles('Cargo.lock') }}-
-      - name: Prepare pinned OMH content with Rust
-        run: python scripts/Prepare-Content.py
       - name: Rust static checks
         if: always() && !cancelled() && steps.audit.outcome == 'success' && steps.install.outcome == 'success'
         run: |
@@ -319,7 +207,7 @@ jobs:
         if: always() && !cancelled() && steps.audit.outcome == 'success' && steps.install.outcome == 'success'
         run: |
           New-Item -ItemType Directory -Force artifacts/diagnostics | Out-Null
-          cargo test --locked -p atm-core -p atm-cli --all-targets 2>&1 | Tee-Object artifacts/diagnostics/core.log
+          cargo test --locked -p atm-core --all-targets 2>&1 | Tee-Object artifacts/diagnostics/core.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve Windows core diagnostics
         if: always()
@@ -339,8 +227,6 @@ jobs:
         run: ./scripts/Test-TauriGui.ps1
       - name: Package and test the extracted Windows distribution
         run: |
-          cargo build --locked --release -p atm-cli
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/Package-Release.py --output artifacts/ai-tooling-manager-windows-x64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/Test-Distribution.py artifacts/ai-tooling-manager-windows-x64.zip
@@ -376,23 +262,17 @@ jobs:
             target
           key: ${{ runner.os }}-${{ github.repository }}-rust-v2-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
 
-
   macos-desktop:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'all' }}
     runs-on: macos-15
     timeout-minutes: 40
     env:
-      ATM_SKILLS_LIVE: '0'
-      ATM_ENGINE_LIVE: '0'
       PYTHONNOUSERSITE: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -415,17 +295,15 @@ jobs:
           rustup component add rustfmt clippy
           npm ci --ignore-scripts
           cargo fetch --locked --target aarch64-apple-darwin
-      - name: Prepare pinned OMH content with Rust
-        run: python scripts/Prepare-Content.py
       - name: Native isolated validation without signing or installation
         run: |
           export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
           bash scripts/Verify-MacOS.sh
       - name: Package and test the extracted macOS distribution
         run: |
-          cargo build --locked --offline --release -p atm-cli
-          python scripts/Package-Release.py --output artifacts/ai-tooling-manager-macos-arm64
-          python scripts/Test-Distribution.py artifacts/ai-tooling-manager-macos-arm64.tar.gz
+          cargo build --locked --offline --release -p atm
+          python3 scripts/Package-Release.py --output artifacts/ai-tooling-manager-macos-arm64
+          python3 scripts/Test-Distribution.py artifacts/ai-tooling-manager-macos-arm64.tar.gz
       - uses: actions/upload-artifact@v6
         with:
           name: ai-tooling-manager-macos-arm64

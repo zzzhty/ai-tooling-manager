@@ -11,7 +11,6 @@ path = "tests/support/storage_probe.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-toml_edit = "=0.20.2"
 zeroize.workspace = true
 uuid.workspace = true
 sha2.workspace = true
@@ -37,6 +36,3 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 
 [dev-dependencies]
 tempfile = "3.23"
-
-[build-dependencies]
-serde_json.workspace = true

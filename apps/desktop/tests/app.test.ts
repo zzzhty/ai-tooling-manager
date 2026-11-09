@@ -32,7 +32,7 @@ const makePreview = async () => { await selectTarget(); click('preview-selected'
 beforeEach(async () => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   api = {
-    initializeStorage: vi.fn().mockResolvedValue(undefined), configureCodexCli: vi.fn().mockResolvedValue(undefined), disconnectCodexCli: vi.fn().mockResolvedValue(undefined), queryCodexUsage: vi.fn(), queryGlmUsage: vi.fn(), harnessDiagnose: vi.fn(), harnessCapabilities: vi.fn(), harnessExecute: vi.fn(), harnessStatus: vi.fn(), skillsInventory: vi.fn(), skillsInstall: vi.fn(), skillsUninstall: vi.fn(), skillsRestore: vi.fn(), skillsPurge: vi.fn(), skillsCopy: vi.fn(), pickDirectory: vi.fn(),
+    initializeStorage: vi.fn().mockResolvedValue(undefined), configureCodexCli: vi.fn().mockResolvedValue(undefined), disconnectCodexCli: vi.fn().mockResolvedValue(undefined), queryCodexUsage: vi.fn(), queryGlmUsage: vi.fn(),
     snapshot: vi.fn().mockResolvedValue(fixture()), saveKey: vi.fn().mockResolvedValue(keyId), deleteKey: vi.fn().mockResolvedValue(undefined),
     saveTarget: vi.fn().mockResolvedValue(targetId), deleteTarget: vi.fn().mockResolvedValue(undefined),
     preview: vi.fn().mockImplementation(async () => preview()), applyPreview: vi.fn().mockResolvedValue([{ path: 'C:\\fake\\config.jsonc', outcome: 'applied', message: 'FAKE_RAW_MESSAGE', code: null, backupPath: 'C:\\fake\\backups\\fake.atmbackup', temporaryPath: null }]),
@@ -221,43 +221,6 @@ describe('template confirmation and rollback', () => {
 
 
 
-describe('skills confirmation interruptions', () => {
-  it.each(['visibilitychange', 'pagehide'])('clears install and copy consent on %s', async event => {
-    // TEST_ONLY inventory and picker fixtures; no filesystem or service access.
-    vi.mocked(api.skillsInventory).mockResolvedValue({
-      roots: [{ id: 'claude-code', label: 'Claude Code', path: '/TEST_ONLY/skills', exists: true,
-        entries: [{ name: 'local-skill', kind: 'directory', displayName: null, description: null, linkTarget: null }] }],
-      trash: [], managerHome: '/TEST_ONLY/manager',
-    });
-    vi.mocked(api.pickDirectory).mockResolvedValue('/TEST_ONLY/source/new-skill');
-    root.querySelector<HTMLButtonElement>('[data-panel="skills"]')!.click();
-    click('inventory-skills'); await ready();
-    click('pick-skills-source'); await ready();
-    [...get('skills-roots').querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === '复制到…')!.click();
-    click('confirm-skills-install'); click('confirm-skills-copy');
-    expect(get<HTMLButtonElement>('install-skill').disabled).toBe(false);
-    expect(get<HTMLButtonElement>('copy-skill').disabled).toBe(false);
-    if (event === 'visibilitychange') {
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-      document.dispatchEvent(new Event(event));
-    } else window.dispatchEvent(new Event(event));
-    for (const action of ['install', 'copy']) {
-      expect(input(`confirm-skills-${action}`).checked).toBe(false);
-      expect(get<HTMLButtonElement>(`${action}-skill`).disabled).toBe(true);
-      click(`${action}-skill`);
-    }
-    expect(api.skillsInstall).not.toHaveBeenCalled();
-    expect(api.skillsCopy).not.toHaveBeenCalled();
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
-    document.dispatchEvent(new Event('visibilitychange'));
-    click('confirm-skills-install'); click('confirm-skills-copy');
-    expect(get<HTMLButtonElement>('install-skill').disabled).toBe(false);
-    expect(get<HTMLButtonElement>('copy-skill').disabled).toBe(false);
-  });
-});
-
-
 describe('configuration failure isolation', () => {
   it('keeps independent panels usable, clears stale state, and recovers on explicit refresh', async () => {
     vi.mocked(api.snapshot).mockRejectedValueOnce({ code: 'STORAGE_UNAVAILABLE', message: 'FAKE_PRIVATE_ERROR' });
@@ -267,7 +230,7 @@ describe('configuration failure isolation', () => {
     expect(get<HTMLButtonElement>('save-key').disabled).toBe(true);
     expect(get<HTMLButtonElement>('save-target').disabled).toBe(true);
     expect(get('keys-list').textContent).not.toContain('合成假密钥');
-    for (const panel of ['harness', 'skills', 'usage']) {
+    for (const panel of ['usage']) {
       const nav = root.querySelector<HTMLButtonElement>(`[data-panel="${panel}"]`)!;
       expect(nav.disabled).toBe(false); nav.click();
       expect(get(`panel-${panel}`).hidden).toBe(false);

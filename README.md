@@ -12,71 +12,20 @@
 
 Provider → 出口代理绑定的已选架构、拟议适配和验收边界见 [设计方案](docs/PROVIDER_PROXY_DESIGN.md)；该功能尚未实现。
 
-## 固定版本内容分发（harness）
+## Skills / harness 分发已移交 OMH（0.3.0 起）
 
-Harness 分发由 `atm-core::distribution::Service` 的 Rust 实现负责，CLI 与 GUI 调用同一 application service。`content/omh.lock.json` 固定 OMH 发布版本；生成的 `harness/` 保存已验证的离线 payload；分发不调用 Python `machine.py`、`engine.py` 或隐藏 fallback。默认 manager home 为 `~/.atm`，可用绝对路径 `ATM_HOME` 覆盖。
-
-- `atm harness bootstrap` 校验版本化 manifest 和每个内容摘要，生成 canonical catalog JSON，再缓存选定发布内容；`sync` 更新缓存引用。两者都不需要 Python、不下载解释器、不启用 hooks。完整缓存可离线安装、更新、卸载静态 skills。
-- `atm harness export/import/fetch` 使用独立内容清单和版本锁；导入只建立缓存，不写安装记录或启用 hooks。目标路径策略固定在 ATM 的 `policy/harnesses/`，远端内容不能决定写入位置。契约与兼容边界见 [OMH 内容契约](docs/OMH_CONTENT_CONTRACT.md)。
-- Rust 拥有来源校验、版本锁定、缓存、计划、应用、适配器、receipt、锁及 journal 恢复。一个物理目标只有一个 owner；同名外来文件和用户修改会阻止变更，不按文件名猜测接管。跨文件操作由 journal 保护，不宣称完全原子；中断后显式执行 `atm harness recover`。
-- 状态查询只读记录，不创建安装、不探测 Python、不解释为实时健康。主动 `check`/`doctor` 检查已记录文件与缓存；发现旧 skill-watcher hook 时提示显式退役，不启动 Python。GUI 仍要求明确目标与一次操作确认。
-- Python 只属于声明了它的内容脚本。`runtime prepare` 需要显式解释器绝对路径，按依赖组和内容版本创建最终路径 venv，检查成功后才切换引用。外部 venv 只验证；不修改项目 `.venv` 或全局 Python。离线缺 wheel/依赖会明确报错，旧有效环境保留。
-- OMH 的审计与验证脚本归各 skill 所有；维护包保留 doc-alignment、housekeeping、skill-compressor。旧 Watcher 采集、历史报告读取和 skill-maintainer 已退役；现有 `mattpocock-skills:writing-for-agents` 负责 agent 指令编写。ATM 通用 ownership、venv 和旧 hook 卸载能力仍保留，真实用户日志、报告和缓存不因内容锁变更而改写。
-- 旧 Python 状态只能通过显式 `atm harness adopt` 一次性交接。普通 bootstrap/sync 不自动收编；不长期维护两个分发引擎。没有自动部署、刷新本机入口或变更 PATH。
-
-使用说明见 [Harness 工作流](docs/HARNESS_USAGE.md)；本次迁移的验证范围见 [验收矩阵](docs/ACCEPTANCE_MATRIX.md)。此前平台 CI 通过记录不是新 Rust 分发的原生平台验收。
-
-## 本地技能管理
-
-“本地技能管理”面板直接盘点和操作各工具的技能根目录，**不依赖内置引擎安装**；分发在场时通过共同 receipt 识别其管理的内容并保护：
-
-- 工具目录由引擎 registry 在 Rust 构建时生成，共 10 个工具（Claude Code、Copilot CLI、VS Code、Codex、Z Code、Gemini CLI、OpenCode、OpenClaw、Pi Agent、Oh My Pi）；保留 `copilot` 等输入别名和旧投影收据。VS Code 使用默认 `.copilot`，Copilot CLI 单独尊重 `COPILOT_HOME`，共享实际路径时禁止重复管理并尊重对应环境变量（`CLAUDE_CONFIG_DIR`、`COPILOT_HOME`、`CODEX_HOME`、`GEMINI_CLI_HOME`、`OPENCLAW_HOME`、`OPENCLAW_PROFILE`、`OPENCLAW_STATE_DIR`、`PI_CODING_AGENT_DIR`）；`~/.agents/skills` 与所有点开头条目（含 Codex 系统技能 `.system`）永不列出或触碰。
-- 盘点按条目分类：内置分发管理内容（链接或 Rust receipt 中的受管副本，**只读**，变更请用 `--harness` 命令）、其它链接（含断链）、本地目录、普通文件；技能名和描述读取 SKILL.md 的受限 frontmatter（仅字面 `name:`/`description:` 行），解析失败保持未知。
-- 安装只接受本机普通目录（含 SKILL.md、不含任何链接或非常规文件），上限 512 文件、8 MB、8 层嵌套；staging 后原子改名，同名条目一律拒绝不覆盖；目标根不存在时自动创建。
-- 卸载的目录技能移动到本管理器数据目录的 `skills-trash/` 保管区，可恢复（原根有同名则拒绝）或彻底删除（模态确认声明不可恢复）；外部链接（含断链）仅供查看，不提供复制或卸载入口，ATM 不触碰链接或其目标。
-- 跨根复制产生独立副本，不做持续同步；与日后引擎投影的同名冲突由引擎侧既有的同名保护拒绝，双方内容都不受影响。演示模式下所有技能变更命令直接拒绝，不写任何目录。
-
-### atm CLI（统一命令行管理器）
-
-`crates/atm-cli` 提供与 GUI 同源（atm-core）的命令行入口 `atm`，提供完整的**技能与 harness 管理**；配置编辑与额度查询目前仍由桌面入口提供。语法为动词优先 `atm <verb> <object>`：`--harness` 选择内置引擎模态（安装/重应用/移除/校验/修复完整分发，指令随行），省略则为本地技能模态。分发命令直接调用 Rust 服务；bootstrap/sync 只读取随包内容，不访问密钥库：
+按 [ADR 0032](docs/adr/0032-atm-exits-skills-distribution.md)，ATM 自 0.3.0 起不再包含
+skills/harness 分发能力（Rust 实现、CLI、桌面面板与内容锁均已移除）。skills 的安装、
+更新、卸载与恢复由 OMH standalone CLI 独立负责：
 
 ```bash
-# 内置分发模态（先校验和缓存随包内容）
-atm harness bootstrap
-atm install skills --harness <ID>[,<ID>...]        # 安装内置分发；加 --dry-run 查看计划
-atm update skills --harness <ID>[,<ID>...]         # 更新受管文件，拒绝覆盖用户修改
-atm uninstall skills --harness <ID>[,<ID>...]      # 移除分发
-atm check skills --harness <ID>[,<ID>...] [--strict] # Rust 完整性诊断
-atm repair skills --harness <ID>[,<ID>...]         # 重新应用受管内容，不改 PATH
-atm uninstall/check hooks --harness codex          # 退役/检查旧 skill-watcher；仅 uninstall 接受 --dry-run
-
-# 本地技能模态（与 GUI「本地技能管理」同源）
-atm list skills [--json] [--trash]                 # 盘点工具根与保管区
-atm install skills <SOURCE> --to <ROOT> [--name <NAME>]
-atm uninstall skills <ROOT> <NAME> / copy skills <SRC> <NAME> <DST>
-atm publish skills <SOURCE> --name <NAME> --to <ROOT>[,<ROOT>...]
-atm project skills <NAME> --to <ROOT> / unproject skills <NAME> --from <ROOT> [--force]
-atm unpublish skills <NAME> [--with-projections]
-atm check skills [NAME] [--json] / update skills [NAME] [--force]
-atm restore/purge skills <TRASH_ID>
-
-# 维护组：缓存、记录态、显式交接与中断恢复
-atm harness bootstrap|sync|status [--home PATH] [--json]
-atm harness adopt [--home PATH] [--retire-missing ID[,ID...]] --dry-run
-atm harness adopt [--home PATH] [--retire-missing ID[,ID...]]
-atm harness recover [--home PATH]
-atm harness migrate --to /absolute/new-home --source /absolute/payload --dry-run
-# 已准备 runtime 时 apply 需要 --python /absolute/python；保留旧数据与恢复记录。
-atm harness plan install --harness zcode
-# 仅在需要选定 Python payload 时准备；Windows 同样传绝对路径
-atm harness runtime prepare workflow --python /absolute/path/to/python3 --offline
-atm uninstall hooks --harness codex --dry-run
-atm uninstall hooks --harness codex
+python3 -m omh {prepare,install,update,uninstall,status,plan,recover} --harness codex|claude-code
 ```
 
-旧 `atm skills ...` 名词式语法已随本次合并移除（`inventory→list skills`、`install <SRC> <ROOT> [NAME]→install skills <SRC> --to <ROOT> [--name]`、`trash→list skills --trash`、`refresh→update skills`）。`atm harness --` 只接受受限的已知 Rust 命令，不再转发任意引擎 argv 或 machine 协议；参数限幅（≤64 项/单项 ≤4 KiB/总量 ≤32 KiB）。
-
-投影模型：发布时技能源被收编为本管理器数据目录下的 canonical 副本，投影在 POSIX 用符号链接、Windows 用普通复制（无特权要求；`check` 会逐文件比对副本，`update skills --force` 覆盖被修改副本）。刷新先在目标根的隐藏暂存目录完整审计/复制，成功后受控交接并更新目录身份登记；复制、替换或登记失败会保留/恢复旧副本。缺失的 skills 根经路径与引擎边界检查后重建；仍有缺源、未授权覆盖修改或所有权未知时，`update skills` 返回非 0。强制中断可能留下 `.atm-refresh-old-*` 或 `.atm-staging-*`，需按错误提示核对保留内容，不应直接删除。GUI 的技能盘点会把 ATM 投影标注为“由 ATM 投影管理”；POSIX 链接投影不提供跨根复制，追加投影使用 `atm project skills`；Windows 普通副本仍可复制。投影撤除仅通过 `atm unproject skills` 或随源一并撤除的 `atm unpublish skills --with-projections`，两条路径都同步更新登记。
+真实安装的交接遵循 [ADR 0031](docs/adr/0031-omh-owned-runtime-and-independent-distribution.md)
+的单目标单 owner 协议（现任拥有者完整卸载 → 恢复检查 → OMH 安装）；操作手册见
+[移交指南](docs/HARNESS_USAGE.md)。历史设计、迁移与恢复记录保留在对应 ADR 与
+[退出设计](docs/SKILLS_DISTRIBUTION_EXIT_DESIGN.md)。
 
 ## 构建与验证
 
@@ -121,26 +70,21 @@ Linux / Windows / macOS 的功能支持状态、合成 GUI/CLI 验证步骤与�
 - Windows x64：`npm run tauri:build` 产出 `target\release\atm-desktop.exe`，需已安装 WebView2 Runtime。
 - Linux：同命令产出 `target/release/atm-desktop`，需要可用且已解锁的会话 keyring 与 WebKitGTK 运行库。
 - 想先体验假配置：运行时加 `--demo`。每次创建新的独立临时目录，演示数据不会进入默认密钥库；额度查询返回明确的合成假数据。
-- vault 或模板打开失败时，配置服务停止编辑并显示恢复提示，本地技能、harness 和 Codex 查询仍可使用。
+- vault 或模板打开失败时，配置服务停止编辑并显示恢复提示，额度查询仍可使用。
 - 正常运行的存储位置：Windows 为 `%LOCALAPPDATA%\atm`，Linux 为 `$XDG_DATA_HOME/atm`（默认 `~/.local/share/atm`）。数据目录保持稳定。此轮按空 vault 前提切换 OS 加密身份，不提供旧非空 vault 的兼容解密。目录内 `vault.*` 保存密钥和目标映射，`templates.*` 保存加密模板，`backups\*.atmbackup` 保存完整加密备份。程序只列举自己的备份目录。
 
-### 完整便携分发
+### 桌面便携包
 
-发布包包含 `atm`、`atm-desktop` 和相邻的 `harness/` manifest 允许清单。完整 Python 分发脚本树不进入包。整体解压后使用；升级程序包后运行 `atm harness sync`，再对已安装目标执行 `atm update skills --harness <ID>`。缓存版本和 runtime 环境不会随意搬移；未完成操作通过 `atm harness recover` 按 journal 恢复，遇到用户后续修改则停止并保留证据。
-
-静态 skills 与 status 无需 Python。只有显式选定的 Python payload 需要声明版本的解释器与独立 venv；runtime 准备复用 OMH 的 Python 实现，显式 `--python` 选择解释器，`--deployment-root` 选择独立的 venv 部署位置；`--external-venv` 可只读复用已有 OMH venv。目标旁的 `.omh-runtime` 持久保存启动绑定，`OMH_PYTHON` 可显式覆盖。release 构建只读取相邻 `harness/` 或显式绝对路径 `ATM_ENGINE_SOURCE`，不会回退到构建机源码目录。便携包未签名；Windows 仍需 WebView2，Linux 桌面仍需 WebKitGTK，会话 keyring 仅供配置加密功能使用。
-
-ATM 应用保持 `0.2.0`，内容锁更新为重发的 OMH `1.1.1`（revision `74f6145b77041bd50654bbe3e53a7900399a5c68`）。本次重发经用户明确授权替换同版本资产；旧 1.1.1 锁文件的摘要不适用于新资产，更新时应使用重新核验的锁。无需桌面的用户可只构建 `atm-cli`，使用 `Package-Release.py --cli-only` 打包；完整步骤见 [Harness 使用文档](docs/HARNESS_USAGE.md#independent-versions-and-cli-only-packages)。CLI 与桌面共享同一 manager/receipt，不创建 OMH 的第二个 owner。
-
-以下 Python 脚本属于开发/发布验证工具；被测 CLI 的静态生命周期在空 `PATH` 和临时用户目录中运行。完整包验收同时通过 `atm-desktop --verify-distribution` 检查内嵌前端及相邻 payload；该只读检查不初始化窗口或安全存储，也不代表交互界面验收：
+发布包只包含 `atm-desktop`、`icons/`、LICENSE 与 README（无 CLI、无内容 payload）。
+整体解压后使用；分发与更新见上文 OMH 章节。便携包未签名；Windows 仍需 WebView2，
+Linux 桌面仍需 WebKitGTK，会话 keyring 仅供配置加密功能使用。
 
 ```bash
-python3 scripts/Prepare-Content.py
 npm run build
-cargo build --locked --release -p atm -p atm-cli
+cargo build --locked --release -p atm
 python3 scripts/Package-Release.py --output artifacts/ai-tooling-manager-local
 python3 scripts/Test-Distribution.py artifacts/ai-tooling-manager-local.tar.gz
-# Windows 使用 .zip；验收在临时用户目录运行，不读取真实配置。
+# Windows 使用 .zip；验收在临时目录运行，不读取真实配置。
 ```
 
 ## 使用步骤
@@ -201,11 +145,10 @@ DPAPI / 会话 keyring / Keychain 不能防御同一用户下的恶意进程、�
 
 ## 源码与重现验证
 
-- `crates/atm-core`：`application/` 统一配置预览/模板/额度编排，桌面仅保留 IPC、授权与窗口适配；`tool_catalog` 从引擎 registry 构建工具目录。另含DPAPI / Secret Service / Keychain 安全存储、命名密钥库、规范路径与指纹、JSONC 源范围编辑、结构模板与 schema 校验、批量处理和回滚、Codex/GLM 额度探测、harness 引擎记录态快照、machine v1 生命周期接口与内嵌源物化（`harness_embed`）。
-- `policy/`：ATM 的目标策略与已发布状态 schema。`content/omh.lock.json` 固定独立 OMH 内容发布；`python scripts/Prepare-Content.py` 调用 Rust 导入器生成忽略提交的 `harness/`。技能源、开发工具和内容语义测试由 OMH 维护；ATM 不再内嵌其完整源码。
+- `crates/atm-core`：`application/` 统一配置预览/模板/额度编排，桌面仅保留 IPC、授权与窗口适配。另含 DPAPI / Secret Service / Keychain 安全存储、命名密钥库、规范路径与指纹、JSONC 源范围编辑、结构模板与 schema 校验、批量处理和回滚、Codex/GLM 额度探测。
 - `apps/desktop`：Tauri 2 壳（`src-tauri`，Tauri commands 与窗口构建）和 TypeScript 前端（`src`，单窗口界面、隔离演示、额度界面）。
 - `apps/desktop/tests` 与 `crates/atm-core/tests`：前端 vitest 测试与 Rust 核心/服务测试，全部用 `FAKE_` 值和每次新建的隔离目录。
-- `scripts/Verify-Local.sh`：离线源码与合成测试验证（fmt、clippy、Rust 测试、前端检查/测试/构建、导入 payload 的 catalog/runtime 健康检查、显式源码文件清单与凭据模式审计；OMH 内容语义测试由其独立仓库维护，ATM CI 从锁定 revision 运行），在子进程内关闭真实对象 opt-in。技能 fixture 的显式构造入口忽略外部工具根覆盖；应用入口保留环境配置语义，详见[隔离说明](docs/ACCEPTANCE_MATRIX.md#linux-本地离线检查)。macOS 原生隔离 GUI 使用 `scripts/Verify-MacOS.sh`；源码检查不能替代原生验证。
+- `scripts/Verify-Local.sh`：离线源码与合成测试验证（fmt、clippy、Rust 测试、前端检查/测试/构建、显式源码文件清单与凭据模式审计），在子进程内关闭真实对象 opt-in，详见[隔离说明](docs/ACCEPTANCE_MATRIX.md#linux-本地离线检查)。macOS 原生隔离 GUI 使用 `scripts/Verify-MacOS.sh`；源码检查不能替代原生验证。
 - `scripts/Test-LinuxKeyring.sh` / `Test-LinuxGui.sh` / `Test-TauriGui.ps1`：隔离 keyring 生命周期、Linux 原生 GUI 与 Windows Tauri GUI 冒烟。
 - `scripts/Audit-TrackedSource.ps1`：核对 Git 内实际源码的精确清单、可读性、包装头与明显凭据模式；本机能读和编译不代表没有公司透明加密，核查结论见 `docs/源码包与透明加密核查.md`。
 - `.github/workflows/rust-ci.yml`：Rust/前端静态检查与测试、Windows Tauri 构建、隔离真实 Secret Service 生命周期、Linux GUI 冒烟及 macOS arm64 原生隔离 GUI。工作流只请求源码读取权限，不使用真实 key 或部署服务。
@@ -229,4 +172,4 @@ DPAPI / 会话 keyring / Keychain 不能防御同一用户下的恶意进程、�
 
 准备分发源码或变更仓库可见性前，先检查[公开前的数据边界](docs/publication-safety.md)。当前文件清理不代表历史、PR diff 或构建产物已经脱敏。
 
-OMH 独立 Python 分发与 ATM Rust 分发遵守单目标单 owner；共享 runtime 流程和显式交接见 [ADR 0031](docs/adr/0031-omh-owned-runtime-and-independent-distribution.md)。新流程需支持协议的 OMH 内容；本改动保留现有发布锁，不自动迁移真实安装。
+ATM 已退出分发（[ADR 0032](docs/adr/0032-atm-exits-skills-distribution.md)）；OMH standalone 是唯一的 skills/harness 分发者，单目标单 owner 协议见 [ADR 0031](docs/adr/0031-omh-owned-runtime-and-independent-distribution.md)。
