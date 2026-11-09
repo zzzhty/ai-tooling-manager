@@ -30,17 +30,12 @@
 | macOS 安全存储 | Keychain 专用条目 + AES-GCM；[macOS 说明](MACOS.md)、[macos.rs 测试](../crates/atm-core/tests/macos.rs) | 部分共享逻辑/模拟后端可在 Linux 测试；不构成 macOS 证据 | macOS 原生用例、真实 Keychain、GUI 未运行；CI 目标为 arm64，Intel/universal 未验证 |
 | 批量更新、JSONC、模板与回滚 | [batch.rs](../crates/atm-core/src/batch.rs)、[JSONC parity](../crates/atm-core/tests/parity.rs)、[模板测试](../crates/atm-core/tests/templates.rs)：逐文件原子替换、完整加密备份、精确源字节和本地 schema 校验 | 共享核心与 Linux 回归通过，含 T01 新增冲突/确认/备份边界和 P01 无转义解析、Unicode/控制字节回归 | Windows/macOS 专属文件语义未验证；合成性能收益不等于 GUI 延迟收益 |
 | Codex / GLM 额度 | [usage 测试](../crates/atm-core/tests/usage.rs)、[Codex 子进程测试](../crates/atm-core/tests/codex_process.rs)；未知值保留未知，固定端点/argv，主动查询 | 合成协议、错误和进程边界测试通过 | 未查询真实账户或额度端点 |
-| 当前 Rust 分发记录与 GUI bridge | [harness.rs](../crates/atm-core/src/harness.rs)、[harness_machine.rs](../crates/atm-core/src/harness_machine.rs) 直接调用 Rust service | 13 项 bridge 测试通过；状态解析、确认/重复目标拒绝、无 Python 只读查询 | 当前 GUI 原生 IPC/真实客户端未验证；旧 machine subprocess 协议已退役 |
-| 当前 Rust 内容分发与显式交接 | [distribution](../crates/atm-core/src/distribution/)、[CLI 测试](../crates/atm-cli/tests/cli.rs) | 6 项空 PATH/离线缓存 CLI 测试通过，涵盖静态生命周期、用户修改拒绝、显式解释器/来源验证 | 完整集成结果另记；真实旧 manager、Windows/macOS 原生迁移未验证 |
-| 技能、回收站、投影与 CLI | [skills 测试](../crates/atm-core/tests/skills.rs)、[projection 测试](../crates/atm-core/tests/projection.rs)、[CLI 测试](../crates/atm-cli/tests/cli.rs) | Linux 临时目录中的复制、符号链接投影、所有权拒绝、回收恢复和 CLI 通过，含 T02 | macOS 虽共用 POSIX 实现，原生未测；Windows 为普通复制投影，foreign-slot 断言已修正但未在 Windows 运行；真实技能根未访问 |
+| ~~Rust 分发、harness bridge、技能/投影/CLI~~ | 已按 [ADR 0032](adr/0032-atm-exits-skills-distribution.md) 于 0.3.0 整体移除；历史验证记录见第 6–8 节 | — | 分发归 OMH standalone，见 [移交指南](HARNESS_USAGE.md) |
 | 前端 | [组件测试](../apps/desktop/tests)、TypeScript 与 Vite | 88 项通过，类型检查与前端构建通过 | 前端测试/构建不能代替 Tauri 原生启动和 GUI 验证 |
 
-当前分发由 `distribution::Service` 执行。bootstrap/sync 验证和缓存 manifest 内容，
-不创建 Python venv；静态 skills 的 install/update/uninstall/status 可在无 Python 环境使用。
-只有显式选定的 payload runtime 需要声明的绝对解释器；外部 venv 只验证。准备 runtime
-不启用 hook，启停由 Rust 安全合并 owned entries。CLI/GUI 共用 ownership 与 journal。
-`atm harness adopt` 是旧状态的一次性交接，`recover` 是显式恢复；普通操作不调用旧引擎。
-详细命令见 [README](../README.md)。
+分发已按 [ADR 0032](adr/0032-atm-exits-skills-distribution.md) 移除；skills/harness 的
+安装、更新与恢复由 OMH standalone 负责，命令与交接步骤见
+[移交指南](HARNESS_USAGE.md)。
 
 ### 原生 GUI 入口与 PASS 的含义
 
@@ -76,11 +71,9 @@ Cargo 使用 `--locked --offline`。默认隔离 CARGO_HOME 必须已有所需�
 引擎管理目录覆盖。应用的 `from_environment()` 仍尊重这些环境配置，不能用它创建合成 fixture。
 回归以独立子进程注入外部假目录并检查目录未变，不在并行 Rust 测试中修改全局环境。
 
-当前 harness bridge 测试不再提供真实 Python 引擎 opt-in。`ATM_SKILLS_LIVE=1` 的真实
-本地盘点入口仍须单独授权，`Verify-Local.sh` 强制关闭。先用 `Prepare-Content.py`
-生成锁定的 OMH payload，再运行本地验证。内容作者测试由独立 OMH 仓库维护；ATM CI
-从锁定 revision 运行其 Python 测试。本地验证使用明确的 runner 检查已导入 runtime，
-静态 CLI 使用空 PATH。缺依赖导致必要检查失败，不能记为通过。
+分发与技能盘点已随 [ADR 0032](adr/0032-atm-exits-skills-distribution.md) 移除，
+`ATM_SKILLS_LIVE`、`Prepare-Content.py` 与 payload 检查随之退役。`Verify-Local.sh`
+强制关闭真实对象 opt-in。缺依赖导致必要检查失败，不能记为通过。
 
 ### 原生平台流程
 

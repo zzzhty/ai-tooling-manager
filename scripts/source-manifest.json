@@ -76,7 +76,6 @@
     "docs/PROVIDER_PROXY_DESIGN.md",
     "docs/PROVIDER_PROXY_IMPLEMENTATION_PLAN.md",
     "docs/RUST_MIGRATION.md",
-    "docs/RUST_WIP_HANDOFF.md",
     "docs/SKILLS_DISTRIBUTION_EXIT_DESIGN.md",
     "docs/adr/0027-atm-embedded-distribution.md",
     "docs/adr/0028-retire-skill-watcher-hooks.md",

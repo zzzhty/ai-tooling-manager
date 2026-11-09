@@ -13,7 +13,6 @@ vault.lock
 .codex/
 .agents/
 # Verified generated OMH payload; authored in the independent content repository.
-/harness/
 
 node_modules/
 /target/

@@ -18,7 +18,7 @@ GLM 通过所选地区的固定官方监控端点读取；不自动切换地区�
 ## 验证
 
 前端通过 `npm run check`、`npm test`、`npm run build` 验证。Rust 合成测试使用
-`cargo test --locked -p atm-core -p atm-cli -p atm --no-default-features --all-targets`。
+`cargo test --locked -p atm-core -p atm --no-default-features --all-targets`。
 `scripts/Verify-Local.sh` 使用离线依赖缓存；原生 GUI 和 Secret Service 验证需要独立
 的隔离环境。工作流存在、历史验证记录或前端测试通过都不证明当前提交的完整平台
 验收成功。不得用真实 keyring、vault、登录目录或账户额度查询补做本地验证。
