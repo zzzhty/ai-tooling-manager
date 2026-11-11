@@ -20,9 +20,6 @@ pub struct Vault {
     pub(crate) document: VaultDocument,
     protector: Arc<dyn Protector>,
 }
-pub fn encrypted_read(path: &Path) -> Result<Zeroizing<Vec<u8>>> {
-    encrypted_read_with(path, storage::system().as_ref())
-}
 pub fn encrypted_read_with(path: &Path, protector: &dyn Protector) -> Result<Zeroizing<Vec<u8>>> {
     let mut options = OpenOptions::new();
     options.read(true);
@@ -61,9 +58,6 @@ pub fn encrypted_read_with(path: &Path, protector: &dyn Protector) -> Result<Zer
         return Err(Error::new("DATA_SIZE", "加密文件过大。"));
     }
     protector.crypt(&data, false)
-}
-pub fn encrypted_write(path: &Path, bytes: &[u8]) -> Result<()> {
-    encrypted_write_with(path, bytes, storage::system().as_ref())
 }
 pub fn encrypted_write_with(path: &Path, bytes: &[u8], protector: &dyn Protector) -> Result<()> {
     let protected = protector.crypt(bytes, true)?;

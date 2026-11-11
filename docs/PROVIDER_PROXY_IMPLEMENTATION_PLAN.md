@@ -2,7 +2,9 @@
 
 # Provider 出口代理绑定 — 实施计划（P0–P4，文件级）· 修订定稿 v2
 
-规格输入：`docs/PROVIDER_PROXY_DESIGN.md`（下称“设计稿”，行号按当前工作树核实）+ `docs/adr/0030-provider-egress-proxy-binding.md`。本计划不改架构，只落实施参数。所有 file:line 均在 HEAD `8c7bfd6` 工作区核实（仅 README/source-manifest 有未提交改动，不影响所引源码行）；v1 稿中一处错误引用（CLI ConfigurationSession 先例）已更正，另新增一处 v1 未列的桌面接入点（`build.rs` 命令清单，本轮现场核实）。
+规格输入：`docs/PROVIDER_PROXY_DESIGN.md`（下称”设计稿”，行号按当前工作树核实）+ `docs/adr/0030-provider-egress-proxy-binding.md`。本计划不改架构，只落实施参数。所有 file:line 均在 HEAD `8c7bfd6` 工作区核实（仅 README/source-manifest 有未提交改动，不影响所引源码行）；v1 稿中一处错误引用（CLI ConfigurationSession 先例）已更正，另新增一处 v1 未列的桌面接入点（`build.rs` 命令清单，本轮现场核实）。
+
+> **重锚定（2026-11-11）**：本计划的 file:line 核对于 HEAD `8c7bfd6`，其中 `crates/atm-cli/*` 相关锚点（§3.6 命令清单、CLI 黑盒测试与并发/存储失败条目等）所指向的 crate 已随 [ADR 0032](adr/0032-atm-exits-skills-distribution.md)（0.3.0）删除；桌面应用是唯一前端。实施时命令面、确认提示与黑盒测试须整体迁移为桌面 Tauri 命令 + 前端测试（`CARGO_BIN_EXE_atm` 类子进程用例改为 Tauri 服务层测试），原文保留仅作设计意图参考。功能实现仍延后。
 
 **v2 修订来源**：合并两份对抗评审（2 blocker / 5 major / 其余 minor），处置明细见附录 A；blocker/major 全部落实，无静默忽略项。
 

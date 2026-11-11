@@ -70,7 +70,7 @@ Linux / Windows / macOS 的功能支持状态、合成 GUI/CLI 验证步骤与�
 - Windows x64：`npm run tauri:build` 产出 `target\release\atm-desktop.exe`，需已安装 WebView2 Runtime。
 - Linux：同命令产出 `target/release/atm-desktop`，需要可用且已解锁的会话 keyring 与 WebKitGTK 运行库。
 - 想先体验假配置：运行时加 `--demo`。每次创建新的独立临时目录，演示数据不会进入默认密钥库；额度查询返回明确的合成假数据。
-- vault 或模板打开失败时，配置服务停止编辑并显示恢复提示，额度查询仍可使用。
+- vault 或模板打开失败时，配置服务停止编辑并显示恢复提示；Codex 额度查询不受影响，GLM 个人版查询需待密钥库恢复（团队版不受影响）。
 - 正常运行的存储位置：Windows 为 `%LOCALAPPDATA%\atm`，Linux 为 `$XDG_DATA_HOME/atm`（默认 `~/.local/share/atm`）。数据目录保持稳定。此轮按空 vault 前提切换 OS 加密身份，不提供旧非空 vault 的兼容解密。目录内 `vault.*` 保存密钥和目标映射，`templates.*` 保存加密模板，`backups\*.atmbackup` 保存完整加密备份。程序只列举自己的备份目录。
 
 ### 桌面便携包

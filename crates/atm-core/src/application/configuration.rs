@@ -339,11 +339,6 @@ impl Configuration {
         self.updater.apply(&mut plan, id, true)
     }
 
-    pub fn cancel_preview(&mut self) -> Result<()> {
-        self.invalidate();
-        Ok(())
-    }
-
     pub fn list_backups(&self) -> Result<Vec<BackupView>> {
         self.updater.backups()
     }

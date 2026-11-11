@@ -88,7 +88,7 @@ export class DesktopApp {
       this.loaded = false; this.data = emptySnapshot(); this.selected.clear(); this.clearSecret();
       this.invalidateLocal(); this.resetCandidate();
       const status = this.get('configuration-status'); status.hidden = false;
-      status.textContent = `配置服务暂不可用：${safeError(error)} 本地技能、内置技能分发及 Codex 查询仍可使用；恢复后请刷新状态。`;
+      status.textContent = `配置服务暂不可用：${safeError(error)} Codex 额度查询不受影响；GLM 个人版查询需待密钥库恢复；恢复后请刷新状态。`;
       this.usage.setSnapshot(this.data); this.renderData();
       throw error;
     }

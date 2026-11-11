@@ -2,6 +2,8 @@
 
 日期：2026-10-29。架构决策：**用户已选定 Provider → 出口代理绑定**；功能、命令和配置格式均尚未实施。本文定义后续实施边界，具体字段和阶段安排为 proposed。
 
+> **重锚定（2026-11-11）**：本文写作时（HEAD `8c7bfd6`）ATM 仍带 `atm-cli`；此后 [ADR 0032](adr/0032-atm-exits-skills-distribution.md)（0.3.0）删除了 CLI crate，桌面应用成为唯一前端。文中所有 CLI 命令与集成面（含 §6 草案）应读作桌面端 Tauri 命令与面板的草案，CLI 专属措辞保留原文仅作历史语境；功能实现仍延后，开工前须按桌面唯一前端重新定稿命令面与测试计划。
+
 ATM 负责把明确的 provider 实例绑定到命名出口，并向受支持的请求路径应用该选择。出口由独立代理服务提供。ATM 不因此成为现有的推理网关，也不接管系统 VPN 或默认路由。架构决策记录见 [ADR 0030](adr/0030-provider-egress-proxy-binding.md)。
 
 ## 1. 目标与场景
@@ -32,9 +34,9 @@ HTTP CONNECT 通常接收目标主机和端口，SOCKS 接收目标地址；加�
 | [usage/process.rs](../crates/atm-core/src/usage/process.rs)、[usage_service.rs](../crates/atm-core/src/application/usage_service.rs) | 启动用户选择的原生 `codex app-server`，指定账户目录，默认 24 秒 watchdog；父进程环境通常会被继承 | ATM 的 reqwest 设置无法改变该子进程流量；它也不是用户自行启动的所有 Codex 推理进程 |
 | [atm-core/Cargo.toml](../crates/atm-core/Cargo.toml) | reqwest 0.12，启用 blocking / rustls-tls，未启用 socks feature | SOCKS 能力须单独实现和验证；不能只接受 URL 就宣布支持 |
 | [storage.rs](../crates/atm-core/src/storage.rs)、[vault.rs](../crates/atm-core/src/vault.rs) | 平台 Protector、加密写入、锁与安全目录检查；Linux Secret Service，macOS Keychain，Windows DPAPI | 复用安全存储能力；后台 Linux 无会话 keyring 不能假设可用 |
-| [CLI main.rs](../crates/atm-cli/src/main.rs)、[桌面 main.rs](../apps/desktop/src-tauri/src/main.rs) | CLI 目前主要提供 skills/harness；桌面调用额度服务 | 本文新 CLI 命令全部是草案；不将已有 skills 工具目录表当成网络能力表 |
+| [桌面 main.rs](../apps/desktop/src-tauri/src/main.rs) | 桌面是唯一前端，调用配置与额度服务 | 本文新命令面（桌面 Tauri 命令）全部是草案；写作时的 CLI 集成面已随 ADR 0032 退役 |
 
-ATM 当前主要管理密钥、配置与内容分发；没有透明承接外部工具推理请求的服务。相关既有约束见 [Linux 存储与额度接口](CODEX_GLM_LINUX.md)、[标识演进规则](agents/internal-identifier-evolution.md)和[验收矩阵](ACCEPTANCE_MATRIX.md)。
+ATM 当前管理密钥与配置（skills/内容分发已随 ADR 0032 移交 OMH）；没有透明承接外部工具推理请求的服务。相关既有约束见 [Linux 存储与额度接口](CODEX_GLM_LINUX.md)、[标识演进规则](agents/internal-identifier-evolution.md)和[验收矩阵](ACCEPTANCE_MATRIX.md)。
 
 ## 3. 数据模型与单一配置来源
 

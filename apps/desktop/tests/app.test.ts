@@ -126,6 +126,17 @@ describe('vault safety and lifecycle', () => {
     const data = fixture(); data.keys[0]!.name = '<img src=x onerror=alert(1)>'; vi.mocked(api.snapshot).mockResolvedValue(data);
     click('refresh'); await ready(); expect(root.querySelector('#keys-list img')).toBeNull(); expect(get('keys-list').textContent).toContain('<img src=x onerror=alert(1)>');
   });
+  it('degrades accurately when the configuration service fails', async () => {
+    vi.mocked(api.snapshot).mockRejectedValueOnce(new Error('FAKE_CONFIG_FAILURE'));
+    click('refresh'); await ready();
+    const status = get('configuration-status');
+    expect(status.hidden).toBe(false);
+    expect(status.textContent).toContain('配置服务暂不可用');
+    expect(status.textContent).toContain('Codex 额度查询不受影响');
+    expect(status.textContent).toContain('GLM 个人版查询需待密钥库恢复');
+    expect(status.textContent).not.toContain('技能');
+    expect(root.textContent).not.toContain('FAKE_CONFIG_FAILURE');
+  });
 });
 
 describe('target mapping', () => {
