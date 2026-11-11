@@ -73,8 +73,6 @@
     "docs/HARNESS_RUST_MIGRATION.md",
     "docs/HARNESS_USAGE.md",
     "docs/MACOS.md",
-    "docs/PROVIDER_PROXY_DESIGN.md",
-    "docs/PROVIDER_PROXY_IMPLEMENTATION_PLAN.md",
     "docs/RUST_MIGRATION.md",
     "docs/SKILLS_DISTRIBUTION_EXIT_DESIGN.md",
     "docs/adr/0027-atm-embedded-distribution.md",

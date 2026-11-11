@@ -10,8 +10,6 @@
 
 应用内置 Codex / GLM 主动额度查询界面：默认不做后台轮询，查不到或无权限的值保持未知，不虚构进度条。Linux 端使用 Secret Service + AES-GCM 安全存储、加密备份和受控文件更新；首次连接会在会话 keyring 中创建本应用专用的随机主密钥。行为、协议来源、支持边界与复现入口见 [本地实现与验证记录](docs/CODEX_GLM_LINUX.md)。
 
-Provider → 出口代理绑定的已选架构、拟议适配和验收边界见 [设计方案](docs/PROVIDER_PROXY_DESIGN.md)；该功能尚未实现。
-
 ## Skills / harness 分发已移交 OMH（0.3.0 起）
 
 按 [ADR 0032](docs/adr/0032-atm-exits-skills-distribution.md)，ATM 自 0.3.0 起不再包含

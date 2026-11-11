@@ -1,8 +1,10 @@
 ---
-status: accepted
+status: withdrawn
 ---
 
 # Provider 出口代理绑定
+
+> **撤回（2026-11-11）**：出口流量已由独立组件 nmd 接管，provider 绑定需求不复存在，本决策撤回；设计与实施计划文档（PROVIDER_PROXY_DESIGN.md、PROVIDER_PROXY_IMPLEMENTATION_PLAN.md）同日删除。以下原文保留作历史记录。
 
 日期：2026-10-29。用户已接受 Provider → 出口代理绑定的架构方向；具体数据模型、适配器和命令仍为 proposed，尚未实施。
 
