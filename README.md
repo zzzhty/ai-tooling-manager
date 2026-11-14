@@ -52,6 +52,16 @@ npm run tauri:build
 # 私有 keyring 和原生 GUI 另按验收矩阵的 CI 隔离前置条件执行
 ```
 
+同一条架构检查在本地和 CI 里都是下面这条命令。它不需要额外依赖。
+报错会写明 Violation、Fix 和 Principle。已经存在的本地编码调用记在
+`scripts/architecture_baseline.json`，不要为了放行新的违规去抬高它。规则对照表在
+`AGENTS.md`。
+
+```bash
+python3 scripts/check_architecture.py
+python3 -m unittest tests/test_architecture_check.py
+```
+
 - 库格式：Windows 使用 DPAPI CurrentUser 的 `vault.dpapi` / `templates.dpapi`；Linux 使用 Secret Service 主密钥 + AES-GCM 的 `vault.atmvault` / `templates.atmvault`。加密备份统一为 `.atmbackup`。
 - JSON/JSONC 更新只替换已注册、已存在的字符串叶节点源字节。模板增加字段白名单和完整待写配置的本地 schema 验证，不创建文件、补齐字段、重排对象或重新序列化整份配置。
 - 候选模板从用户明确选择的单个配置中提取类型、结构和字段位置，保存前须确认。样本标量值不进入模板；属性名、JSON Pointer 和文件名提示仍会保留，请检查这些名称本身是否含敏感信息。没有官方应用预设，也不自动发现配置。

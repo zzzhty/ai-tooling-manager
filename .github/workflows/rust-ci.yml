@@ -26,6 +26,10 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Architecture checks
+        run: |
+          python3 scripts/check_architecture.py
+          python3 -m unittest tests/test_architecture_check.py
       - name: Restore Rust compiler cache
         uses: actions/cache/restore@v5
         with:
@@ -83,6 +87,8 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Architecture checks
+        run: python3 scripts/check_architecture.py
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -164,6 +170,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Architecture checks
+        run: python3 scripts/check_architecture.py
       - name: Verify tracked source
         id: audit
         run: ./scripts/Audit-TrackedSource.ps1 -Mode Head
@@ -273,6 +281,8 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Architecture checks
+        run: python3 scripts/check_architecture.py
       - uses: actions/setup-node@v6
         with:
           node-version: '24'

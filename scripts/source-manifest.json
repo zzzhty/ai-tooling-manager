@@ -98,7 +98,11 @@
     "scripts/Test-TauriGui.ps1",
     "scripts/Verify-Local.sh",
     "scripts/Verify-MacOS.sh",
-    "scripts/source-manifest.json"
+    "scripts/architecture_baseline.json",
+    "scripts/architecture_rules.py",
+    "scripts/check_architecture.py",
+    "scripts/source-manifest.json",
+    "tests/test_architecture_check.py"
   ],
   "directories": []
 }
