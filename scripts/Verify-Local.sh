@@ -6,6 +6,8 @@ export ATM_SKILLS_LIVE=0 ATM_ENGINE_LIVE=0
 unset ATM_TEST_ENGINE_CHECKOUT
 atm_repo="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$atm_repo"
+python3 scripts/check_architecture.py
+python3 -m unittest tests/test_architecture_check.py
 atm_cache="$atm_repo/.validation-cache"
 mkdir -p "$atm_cache"
 touch "$atm_cache/npm-user.conf" "$atm_cache/npm-global.conf"

@@ -1,0 +1,18 @@
+{
+  "notes": "Ratchet, not a waiver. text_io_utf8 and retired_distribution values are maximum counts allowed in that file. Do not raise an entry to land a new violation.",
+  "text_io_utf8": {
+    "scripts/Audit-TrackedSource.ps1": 1,
+    "scripts/Test-LinuxGui.sh": 1,
+    "scripts/Test-MacOSGui.py": 8,
+    "scripts/Verify-Local.sh": 2,
+    "scripts/Verify-MacOS.sh": 1
+  },
+  "retired_distribution": {
+    "docs/ACCEPTANCE_MATRIX.md": 7,
+    "docs/HARNESS_RUST_MIGRATION.md": 2,
+    "docs/RUST_MIGRATION.md": 2,
+    "docs/SKILLS_DISTRIBUTION_EXIT_DESIGN.md": 3,
+    "docs/adr/0032-atm-exits-skills-distribution.md": 1,
+    "docs/pending-platform-work.md": 2
+  }
+}
