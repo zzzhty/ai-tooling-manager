@@ -1,5 +1,5 @@
 {
-  "notes": "Ratchet, not a waiver. text_io_utf8 and retired_distribution values are maximum counts allowed in that file. Do not raise an entry to land a new violation.",
+  "notes": "Ratchet, not a waiver. text_io_utf8 and retired_distribution values are maximum counts allowed in that file. Shrink or remove entries when violations are fixed. Do not raise an entry to land a new violation.",
   "text_io_utf8": {
     "scripts/Audit-TrackedSource.ps1": 1,
     "scripts/Test-LinuxGui.sh": 1,
