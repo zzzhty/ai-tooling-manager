@@ -198,6 +198,36 @@ class ArchitectureCheckTests(unittest.TestCase):
             self.assertTrue(all("baseline allows 1" in item.violation for item in caught))
             self.assertTrue(all("architecture_baseline.json" in item.fix for item in caught))
 
+    def test_count_baselines_must_shrink_after_fixes(self) -> None:
+        cases = [
+            ("text_io_utf8", "text-io-utf8", "scripts/example.py", "path.read_text()\n"),
+            ("retired_distribution", "retired-distribution", "docs/example.md", "HARNESS_NOT_INSTALLED\n"),
+        ]
+        for key, rule, relative, violation in cases:
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                baseline = {key: {relative: 2}}
+                write(root, relative, violation * 2)
+                self.assertEqual(errors(arch.check(root, baseline), rule), [])
+                write(root, relative, violation)
+                caught = errors(arch.check(root, baseline), rule)
+                self.assertEqual(len(caught), 1)
+                self.assertIn("Stale baseline", caught[0].violation)
+                self.assertIn("Lower", caught[0].fix)
+                baseline[key][relative] = 1
+                self.assertEqual(errors(arch.check(root, baseline), rule), [])
+                for removed in (False, True):
+                    write(root, relative, "")
+                    if removed:
+                        (root / relative).unlink()
+                    self.assertEqual(len(errors(arch.check(root, baseline), rule)), 1)
+                baseline[key][relative] = 0
+                self.assertEqual(errors(arch.check(root, baseline), rule), [])
+                write(root, relative, violation)
+                self.assertTrue(errors(arch.check(root, baseline), rule))
+                del baseline[key][relative]
+                self.assertTrue(errors(arch.check(root, baseline), rule))
+
     def test_explicit_utf8_binary_opens_and_tarfile_are_not_text_calls(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

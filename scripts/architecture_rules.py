@@ -367,9 +367,23 @@ def _mapping(baseline: dict[str, Any], key: str) -> dict[str, int]:
     return mapping
 
 
+def _stale_counts(allowed: dict[str, int], found: dict[str, list], key: str, rule: str) -> list[Violation]:
+    return [
+        _violation(
+            "ERROR", relative, 1, rule,
+            f"Stale baseline: {key} allows {ceiling}, but only {len(found.get(relative, []))} remain.",
+            f"Lower {key}[{relative!r}] in scripts/architecture_baseline.json to "
+            f"{len(found.get(relative, []))}, or remove the entry when none remain. Do not restore violations.",
+        )
+        for relative, ceiling in sorted(allowed.items())
+        if ceiling > len(found.get(relative, []))
+    ]
+
+
 def check_text_io(root: Path, baseline: dict[str, Any]) -> list[Violation]:
     allowed = _mapping(baseline, "text_io_utf8")
     found, violations = text_io_sites(root)
+    violations.extend(_stale_counts(allowed, found, "text_io_utf8", "text-io-utf8"))
     for relative, sites in sorted(found.items()):
         ceiling = allowed.get(relative, 0)
         if len(sites) <= ceiling:
@@ -545,8 +559,9 @@ def retired_sites(root: Path) -> dict[str, list[tuple[int, str]]]:
 
 def check_retired_distribution(root: Path, baseline: dict[str, Any]) -> list[Violation]:
     allowed = _mapping(baseline, "retired_distribution")
-    violations: list[Violation] = []
-    for relative, sites in sorted(retired_sites(root).items()):
+    found = retired_sites(root)
+    violations = _stale_counts(allowed, found, "retired_distribution", "retired-distribution")
+    for relative, sites in sorted(found.items()):
         ceiling = allowed.get(relative, 0)
         if len(sites) <= ceiling:
             continue

@@ -54,7 +54,7 @@ npm run tauri:build
 
 同一条架构检查在本地和 CI 里都是下面这条命令。它不需要额外依赖。
 报错会写明 Violation、Fix 和 Principle。已经存在的本地编码调用记在
-`scripts/architecture_baseline.json`，不要为了放行新的违规去抬高它。规则对照表在
+`scripts/architecture_baseline.json`，不要为了放行新的违规去抬高它。修复编码调用或移除已退役标识后，必须同步降低对应计数；归零时可删除条目。规则对照表在
 `AGENTS.md`。
 
 ```bash
