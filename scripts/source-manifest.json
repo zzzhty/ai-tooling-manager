@@ -101,6 +101,7 @@
     "scripts/architecture_baseline.json",
     "scripts/architecture_rules.py",
     "scripts/check_architecture.py",
+    "scripts/check_omh_examples.py",
     "scripts/source-manifest.json",
     "tests/test_architecture_check.py"
   ],
