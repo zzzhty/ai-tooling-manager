@@ -16,9 +16,7 @@
 skills/harness 分发能力（Rust 实现、CLI、桌面面板与内容锁均已移除）。skills 的安装、
 更新、卸载与恢复由 OMH standalone CLI 独立负责：
 
-```bash
-python3 -m omh {prepare,install,update,uninstall,status,plan,recover} --harness codex|claude-code
-```
+安装入口和参数见 [OMH v1.3.0 安装文档](https://github.com/zzzhty/oh-my-harness/tree/v1.3.0#standalone-installation)。
 
 真实安装的交接遵循 [ADR 0031](docs/adr/0031-omh-owned-runtime-and-independent-distribution.md)
 的单目标单 owner 协议（现任拥有者完整卸载 → 恢复检查 → OMH 安装）；操作手册见
@@ -84,7 +82,8 @@ Linux / Windows / macOS 的功能支持状态、合成 GUI/CLI 验证步骤与�
 ### 桌面便携包
 
 发布包只包含 `atm-desktop`、`icons/`、LICENSE 与 README（无 CLI、无内容 payload）。
-整体解压后使用；分发与更新见上文 OMH 章节。便携包未签名；Windows 仍需 WebView2，
+整体解压后使用。ATM 桌面包与 OMH 技能分发相互独立；OMH 不安装或更新 ATM。
+便携包未签名；Windows 仍需 WebView2，
 Linux 桌面仍需 WebKitGTK，会话 keyring 仅供配置加密功能使用。
 
 ```bash
